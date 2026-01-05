@@ -35,14 +35,14 @@ claude plugin install miranda@miranda
 
 ### Skills
 
-**Mouse** (`/miranda:mouse <task-id>`)
+**Mouse** (`mouse <task-id>`)
 - Claims a ba task and works it to completion
 - Creates isolated git worktree for each task
 - Runs superego review before committing
 - Creates PR when done, waits for CodeRabbit feedback
 - Handles descendant tasks automatically
 
-**Drummer** (`/miranda:drummer`)
+**Drummer** (`drummer`)
 - Finds all PRs with `drummer-merge` label
 - Runs holistic batch review across all changes
 - Detects and handles stacked PRs
