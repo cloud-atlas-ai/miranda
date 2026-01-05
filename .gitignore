@@ -4,6 +4,8 @@ dist/
 *.db-journal
 .env
 .env.local
+env
+.wm
 
 # Superego
 .superego/
