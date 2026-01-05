@@ -34,33 +34,46 @@ export function getTmuxName(taskId: string): string {
 }
 
 /**
+ * Generate the tmux session name for a drummer session
+ * Uses timestamp to allow multiple drummer runs
+ */
+export function getDrummerTmuxName(): string {
+  const timestamp = Date.now();
+  return `drummer-${timestamp}`;
+}
+
+/**
  * Spawn a new tmux session running a Claude skill
  *
  * @param skill - The skill to run (e.g., "mouse", "drummer")
- * @param taskId - The task ID to pass to the skill
+ * @param taskId - The task ID to pass to the skill (optional for drummer)
  * @param chatId - Telegram chat ID for notifications (unused here, tracked by caller)
  * @returns The tmux session name
  */
 export async function spawnSession(
   skill: string,
-  taskId: string,
+  taskId: string | undefined,
   chatId: number
 ): Promise<string> {
   // Validate inputs to prevent command injection
   validateShellSafe(skill, "skill");
-  validateShellSafe(taskId, "taskId");
+  if (taskId) {
+    validateShellSafe(taskId, "taskId");
+  }
 
   // chatId is tracked by the caller (state/db.ts), not used in tmux command
   void chatId;
 
-  const tmuxName = getTmuxName(taskId);
+  // Determine tmux session name based on skill type
+  const tmuxName = taskId ? getTmuxName(taskId) : getDrummerTmuxName();
 
   // Build the claude command
-  // Format: claude '<skill> <taskId>' --dangerously-skip-permissions
+  // Format: claude '<skill> [taskId]' --dangerously-skip-permissions
   // AIDEV-NOTE: --dangerously-skip-permissions is safe here because Miranda controls
   // what skills/tasks are spawned, and permission prompts would block autonomous flow.
   // The mouse skill itself handles safety through its own review process (sg review).
-  const claudeCmd = `claude '${skill} ${taskId}' --dangerously-skip-permissions`;
+  const skillInvocation = taskId ? `${skill} ${taskId}` : skill;
+  const claudeCmd = `claude '${skillInvocation}' --dangerously-skip-permissions`;
 
   // Spawn detached tmux session
   // -d: detached (don't attach to it)
@@ -135,8 +148,8 @@ export async function listTmuxSessions(): Promise<TmuxSession[]> {
           attached: attached === "1",
         };
       })
-      // Only return Miranda-managed sessions (mouse-* prefix)
-      .filter((session) => session.name.startsWith("mouse-"));
+      // Only return Miranda-managed sessions (mouse-* or drummer-* prefix)
+      .filter((session) => session.name.startsWith("mouse-") || session.name.startsWith("drummer-"));
   } catch (error) {
     // No tmux server running means no sessions
     const err = error as { stderr?: string };
