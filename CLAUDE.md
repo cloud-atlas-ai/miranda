@@ -9,6 +9,7 @@ Telegram bot for remote Claude orchestration. The ractor who gives voice to the 
 | This bot | **Miranda** | The ractor who voices the Primer for Nell |
 | Task runner | **Mouse** | Small autonomous worker from the Mouse Army |
 | Batch merge | **Drummer** | The collective that processes in rhythm |
+| PR feedback | **Notes** | Director's notes to ractors |
 
 ## What Miranda Does
 
