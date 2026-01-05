@@ -124,12 +124,18 @@ setup_skills() {
             exit 1
         fi
         log_info "Copying skills from $SKILLS_SOURCE..."
-        cp -r "$SKILLS_SOURCE"/* "$SKILLS_DIR/" 2>/dev/null || true
-        log_success "Skills copied from $SKILLS_SOURCE"
+        # Use /. to handle hidden files and empty directories correctly
+        if cp -r "$SKILLS_SOURCE"/. "$SKILLS_DIR/" 2>/dev/null; then
+            log_success "Skills copied from $SKILLS_SOURCE"
+        else
+            log_warn "Failed to copy skills from $SKILLS_SOURCE (directory may be empty)"
+        fi
     else
-        # Check if skills already exist
-        if [[ -d "$SKILLS_DIR/mouse" ]] && [[ -d "$SKILLS_DIR/drummer" ]]; then
-            log_success "Skills already present"
+        # Check if any skills already exist (generic check, not hardcoded)
+        local existing_count
+        existing_count=$(find "$SKILLS_DIR" -name "SKILL.md" 2>/dev/null | wc -l)
+        if [[ $existing_count -gt 0 ]]; then
+            log_success "Skills already present ($existing_count found)"
         else
             log_warn "No skills source provided and skills not present."
             echo ""
