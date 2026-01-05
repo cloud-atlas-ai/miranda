@@ -12,10 +12,11 @@ Telegram bot for remote Claude orchestration. The ractor who gives voice to the 
 
 ## What Miranda Does
 
-1. **Receives commands** via Telegram (`/mouse`, `/status`, `/drummer`)
-2. **Spawns Claude sessions** in tmux on the server
-3. **Notifies user** when Claude needs input (via hook)
-4. **Relays responses** back to Claude via `tmux send-keys`
+1. **Remote orchestration** - Start tasks, respond to questions, merge PRs from your phone
+2. **Project discovery** - List projects and tasks on the server
+3. **Session management** - Spawn, monitor, and control Claude tmux sessions
+4. **Notifications** - Push alerts when Claude needs input (via Telegram)
+5. **Bootstrap** - Set up Claude Code on new machines (skills, hooks, plugins)
 
 ## Architecture
 
@@ -74,6 +75,8 @@ src/
 
 | Command | Action |
 |---------|--------|
+| `/projects` | List projects on server with task counts |
+| `/tasks <project>` | List tasks for a project |
 | `/mouse <task>` | Start mouse skill for task |
 | `/status` | Show all active sessions |
 | `/drummer` | Run batch merge skill |
@@ -97,22 +100,82 @@ curl -X POST http://localhost:3847/notify \
   }"
 ```
 
+## Bootstrap Script
+
+`scripts/bootstrap.sh` sets up Claude Code on a new machine after auth:
+
+```bash
+./scripts/bootstrap.sh [--skills-source <path>]
+```
+
+**What it installs:**
+
+| Component | Source | Purpose |
+|-----------|--------|---------|
+| **Skills** | Copy from local or git repo | mouse, drummer, dive-prep, playbook |
+| **Hooks** | Miranda repo | notify-miranda.sh for notifications |
+| **ba** | cargo install | Task tracking |
+| **sg** | cargo install | Superego metacognitive advisor |
+| **wm** | cargo install | Working memory |
+| **MCP servers** | claude mcp add | oh-mcp, context7, etc. |
+| **Plugins** | claude plugin install | superego plugin |
+
+**Usage:**
+
+```bash
+# On new machine, after `claude` is authenticated:
+
+# Option 1: Copy skills from local machine
+scp -r ~/.claude/skills/ hetzner:~/skills-to-copy/
+ssh hetzner
+./bootstrap.sh --skills-source ~/skills-to-copy
+
+# Option 2: Bootstrap will prompt for skills location
+./bootstrap.sh
+```
+
+**Environment after bootstrap:**
+
+```
+~/.claude/
+├── skills/
+│   ├── mouse/SKILL.md
+│   ├── drummer/SKILL.md
+│   └── ...
+├── hooks/
+│   └── notify-miranda.sh
+└── settings.json (with hooks configured)
+
+# Also installed:
+ba --version    # Task tracking
+sg --version    # Superego
+wm --version    # Working memory
+```
+
 ## Implementation Phases
 
-### Phase 1: MVP
-- [ ] Basic bot with `/mouse`, `/status`, `/stop`
-- [ ] tmux session spawning
+### Phase 1: MVP (Dogfood)
+- [ ] tmux session spawning (`/mouse`)
 - [ ] HTTP endpoint for hook notifications
 - [ ] Inline keyboard for question responses
+- [ ] Callback → tmux send-keys
+- [ ] `/status` command
 
-### Phase 2: Full Features
+### Phase 2: Discovery
+- [ ] `/projects` - list projects on server
+- [ ] `/tasks <project>` - list tasks with inline selection
 - [ ] `/drummer` command
+
+### Phase 3: Bootstrap
+- [ ] `bootstrap.sh` script
+- [ ] Skills copying
+- [ ] ba/sg/wm installation
+- [ ] Hook setup
+- [ ] MCP server configuration
+
+### Phase 4: Polish
 - [ ] `/logs` streaming
 - [ ] SQLite state persistence
 - [ ] Message editing (update in place)
-
-### Phase 3: Polish
 - [ ] Error recovery
 - [ ] Session crash detection
-- [ ] Typing indicators
-- [ ] Rich status formatting
