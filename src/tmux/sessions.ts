@@ -1,6 +1,7 @@
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { config } from "../config.js";
+import type { SkillType } from "../types.js";
 
 const execAsync = promisify(exec);
 
@@ -50,8 +51,8 @@ export function getNotesTmuxName(prNumber: string): string {
   return `notes-${prNumber}`;
 }
 
-/** Supported skill types for Miranda */
-export type SkillType = "mouse" | "drummer" | "notes";
+// Re-export SkillType for consumers that import from sessions.ts
+export type { SkillType } from "../types.js";
 
 /** Configuration for each skill type */
 interface SkillConfig {
