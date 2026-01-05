@@ -178,10 +178,52 @@ async function handleStop(ctx: Context): Promise<void> {
 }
 
 async function handleDrummer(ctx: Context): Promise<void> {
-  // TODO: Implement drummer (Phase 2)
-  await ctx.reply("*Drummer* - Batch Review\n\n_Not yet implemented_", {
-    parse_mode: "Markdown",
-  });
+  const chatId = ctx.chat?.id;
+  if (!chatId) {
+    await ctx.reply("Error: Could not determine chat ID");
+    return;
+  }
+
+  // Check if a drummer session is already running
+  const sessions = getAllSessions();
+  const existingDrummer = sessions.find(
+    (s) => s.skill === "drummer" && s.status === "running"
+  );
+  if (existingDrummer) {
+    await ctx.reply(
+      `Drummer session already running: \`${existingDrummer.tmuxName}\``,
+      { parse_mode: "Markdown" }
+    );
+    return;
+  }
+
+  await ctx.reply("Starting drummer batch review...");
+
+  try {
+    const tmuxName = await spawnSession("drummer", undefined, chatId);
+
+    // Use tmuxName as the session key since drummer has no task ID
+    const session: Session = {
+      taskId: tmuxName, // Use tmux name as identifier for drummer
+      tmuxName,
+      skill: "drummer",
+      status: "running",
+      startedAt: new Date(),
+      chatId,
+    };
+    setSession(tmuxName, session);
+
+    await ctx.reply(
+      `Drummer running
+Session: \`${tmuxName}\`
+
+Reviewing PRs with \`drummer-merge\` label...`,
+      { parse_mode: "Markdown" }
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await ctx.reply(`Failed to start drummer: ${message}`);
+  }
 }
 
 async function handleLogs(ctx: Context): Promise<void> {
