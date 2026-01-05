@@ -64,7 +64,8 @@ export async function spawnSession(
   // Spawn detached tmux session
   // -d: detached (don't attach to it)
   // -s: session name
-  const cmd = `tmux new-session -d -s ${tmuxName} "${claudeCmd}"`;
+  // -e: set TMUX_SESSION env var for notify-miranda.sh hook to identify session
+  const cmd = `tmux new-session -d -s ${tmuxName} -e TMUX_SESSION=${tmuxName} "${claudeCmd}"`;
 
   await execAsync(cmd);
   return tmuxName;
