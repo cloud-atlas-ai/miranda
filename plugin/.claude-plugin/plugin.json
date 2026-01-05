@@ -1,0 +1,11 @@
+{
+  "name": "miranda",
+  "version": "0.1.0",
+  "description": "Mouse and Drummer skills for autonomous task execution and batch PR merging",
+  "author": {
+    "name": "Drazen Urch",
+    "email": "drazen@urch.eu",
+    "url": "https://github.com/cloud-atlas-ai"
+  },
+  "repository": "https://github.com/cloud-atlas-ai/miranda"
+}

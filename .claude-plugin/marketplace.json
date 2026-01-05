@@ -1,0 +1,22 @@
+{
+  "name": "miranda",
+  "owner": {
+    "name": "Drazen Urch",
+    "email": "drazen@urch.eu"
+  },
+  "metadata": {
+    "description": "Miranda plugin marketplace - Mouse and Drummer skills",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "miranda",
+      "source": "./plugin",
+      "description": "Mouse and Drummer skills for autonomous task execution and batch PR merging",
+      "version": "0.1.0",
+      "author": {
+        "name": "Drazen Urch"
+      }
+    }
+  ]
+}
