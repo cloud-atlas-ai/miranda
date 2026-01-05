@@ -34,9 +34,7 @@ export async function getOrphanedSessions(): Promise<TmuxSession[]> {
  */
 export async function cleanupOrphanedSessions(): Promise<number> {
   const orphaned = await getOrphanedSessions();
-  for (const t of orphaned) {
-    await killSession(t.name);
-  }
+  await Promise.allSettled(orphaned.map((t) => killSession(t.name)));
   return orphaned.length;
 }
 

@@ -47,6 +47,9 @@ bot.on("callback_query:data", async (ctx) => {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await ctx.answerCallbackQuery({ text: `Error: ${message}` });
+      await ctx.editMessageText(`*Cleanup*\n\n_Error: ${message}_`, {
+        parse_mode: "Markdown",
+      }).catch(() => {}); // Best-effort update
     }
     return;
   }
