@@ -103,7 +103,13 @@ Use `--base` for stacked PRs where this task depends on another in-flight PR.
     cd <original-dir>
     git worktree remove .worktrees/<task-id>
     ```
-17. Exit and report PR URL
+17. Signal completion to Miranda (if `$MIRANDA_PORT` is set):
+    ```bash
+    curl -sS -X POST "http://localhost:${MIRANDA_PORT}/complete" \
+      -H "Content-Type: application/json" \
+      -d "{\"session\": \"$TMUX_SESSION\", \"status\": \"success\", \"pr\": \"<pr-url>\"}"
+    ```
+18. Exit and report PR URL
 
 ## Git Workflow
 
@@ -130,6 +136,35 @@ Everything before is autonomous.
 - **Success**: PR created, all tasks in tree closed
 - **Blocked**: A task needs human decision - stop and report
 - **Safety**: Max 10 task iterations (prevent runaway)
+
+## Completion Signaling
+
+When running under Miranda (detected by `$MIRANDA_PORT` being set), signal completion at every exit point:
+
+```bash
+# On success (after PR created):
+curl -sS -X POST "http://localhost:${MIRANDA_PORT}/complete" \
+  -H "Content-Type: application/json" \
+  -d "{\"session\": \"$TMUX_SESSION\", \"status\": \"success\", \"pr\": \"<pr-url>\"}"
+
+# On error (unrecoverable failure):
+curl -sS -X POST "http://localhost:${MIRANDA_PORT}/complete" \
+  -H "Content-Type: application/json" \
+  -d "{\"session\": \"$TMUX_SESSION\", \"status\": \"error\", \"error\": \"<reason>\"}"
+
+# On blocked (needs human decision):
+curl -sS -X POST "http://localhost:${MIRANDA_PORT}/complete" \
+  -H "Content-Type: application/json" \
+  -d "{\"session\": \"$TMUX_SESSION\", \"status\": \"error\", \"error\": \"Blocked: <reason>\"}"
+```
+
+**When to signal:**
+- After PR is created and CodeRabbit review passes → success with PR URL
+- If any step fails unrecoverably → error with reason
+- If task needs human decision → error with "Blocked: ..." message
+- If safety limit (10 iterations) reached → error with "Safety limit reached"
+
+**Note:** Only signal if `$MIRANDA_PORT` is set. When running locally without Miranda, skip the curl.
 
 ## Example
 
@@ -176,6 +211,7 @@ Pushing...
 CodeRabbit review passed.
 
 Cleaning up worktree...
+Signaling completion to Miranda...
 Done.
 ```
 
