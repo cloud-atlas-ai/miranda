@@ -119,27 +119,27 @@ Same as mouse skill:
 
 ## Completion Signaling
 
-Signal completion to Miranda at ALL exit points. Use `$TMUX` to get the session name:
+Signal completion to Miranda at ALL exit points. Use `$TMUX_SESSION` (set by Miranda when spawning the session):
 
 **On success** (all comments addressed, pushed):
 ```bash
 curl -sf -X POST http://localhost:${MIRANDA_PORT:-3847}/complete \
   -H "Content-Type: application/json" \
-  -d "{\"session\": \"$TMUX\", \"status\": \"success\", \"pr\": \"<PR-URL>\"}"
+  -d "{\"session\": \"$TMUX_SESSION\", \"status\": \"success\", \"pr\": \"<PR-URL>\"}"
 ```
 
 **On blocked** (needs human decision):
 ```bash
 curl -sf -X POST http://localhost:${MIRANDA_PORT:-3847}/complete \
   -H "Content-Type: application/json" \
-  -d "{\"session\": \"$TMUX\", \"status\": \"blocked\", \"blocker\": \"<reason>\"}"
+  -d "{\"session\": \"$TMUX_SESSION\", \"status\": \"blocked\", \"blocker\": \"<reason>\"}"
 ```
 
 **On error** (failure, safety limit hit):
 ```bash
 curl -sf -X POST http://localhost:${MIRANDA_PORT:-3847}/complete \
   -H "Content-Type: application/json" \
-  -d "{\"session\": \"$TMUX\", \"status\": \"error\", \"error\": \"<reason>\"}"
+  -d "{\"session\": \"$TMUX_SESSION\", \"status\": \"error\", \"error\": \"<reason>\"}"
 ```
 
 Note: `-sf` makes curl silent and fail on HTTP errors. If Miranda is not running (local development), curl will fail silently and the skill continues normally.
