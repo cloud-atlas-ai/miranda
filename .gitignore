@@ -4,8 +4,6 @@ dist/
 *.db-journal
 .env
 .env.local
-env
-.wm
 
 env
 .wm
