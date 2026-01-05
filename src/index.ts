@@ -11,7 +11,7 @@ import {
   findSessionByTmuxName,
 } from "./state/sessions.js";
 import type { HookNotification, CompletionNotification } from "./types.js";
-import { escapeMarkdown } from "./utils/telegram.js";
+import { escapeForCodeBlock } from "./utils/telegram.js";
 
 // Validate configuration
 validateConfig();
@@ -158,7 +158,7 @@ function handleCompletion(completion: CompletionNotification): void {
       });
   } else {
     const errorMsg = completion.error
-      ? `\n\n\`${escapeMarkdown(completion.error)}\``
+      ? `\n\n\`${escapeForCodeBlock(completion.error)}\``
       : "";
     bot.api
       .sendMessage(chatId, `*${taskId}* failed${errorMsg}`, {

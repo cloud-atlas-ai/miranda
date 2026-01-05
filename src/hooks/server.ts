@@ -133,10 +133,12 @@ function handleComplete(
     try {
       const completion = JSON.parse(body) as CompletionNotification;
 
-      // Validate required fields
+      // Validate required fields and optional field types
       if (
         typeof completion.session !== "string" ||
-        (completion.status !== "success" && completion.status !== "error")
+        (completion.status !== "success" && completion.status !== "error") ||
+        (completion.pr !== undefined && typeof completion.pr !== "string") ||
+        (completion.error !== undefined && typeof completion.error !== "string")
       ) {
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Invalid completion format" }));
