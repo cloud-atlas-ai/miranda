@@ -1,11 +1,10 @@
-import { exec, execFile } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 import { access, constants } from "fs/promises";
 import { join } from "path";
 import { config } from "../config.js";
 import { isPathWithin } from "../utils/paths.js";
 
-const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
 /**
@@ -142,21 +141,21 @@ export async function cloneAndInit(repoRef: string): Promise<CloneResult> {
   const initTimeout = 30000; // 30 second timeout for each init
 
   try {
-    await execAsync("ba init", { cwd: projectPath, timeout: initTimeout });
+    await execFileAsync("ba", ["init"], { cwd: projectPath, timeout: initTimeout });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     initErrors.push(`ba init failed: ${message}`);
   }
 
   try {
-    await execAsync("sg init", { cwd: projectPath, timeout: initTimeout });
+    await execFileAsync("sg", ["init"], { cwd: projectPath, timeout: initTimeout });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     initErrors.push(`sg init failed: ${message}`);
   }
 
   try {
-    await execAsync("wm init", { cwd: projectPath, timeout: initTimeout });
+    await execFileAsync("wm", ["init"], { cwd: projectPath, timeout: initTimeout });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     initErrors.push(`wm init failed: ${message}`);
