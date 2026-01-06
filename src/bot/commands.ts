@@ -271,11 +271,8 @@ async function handleMouse(ctx: Context): Promise<void> {
   // Auto-discover project from task ID
   const projectPath = await findProjectForTask(taskId);
   if (!projectPath) {
-    // Fall back to default project if configured
-    if (!config.defaultProject) {
-      await ctx.reply(`Task \`${taskId}\` not found in any project`, { parse_mode: "Markdown" });
-      return;
-    }
+    await ctx.reply(`Task \`${taskId}\` not found in any project`, { parse_mode: "Markdown" });
+    return;
   }
 
   await ctx.reply(`Starting mouse for \`${taskId}\`...`, { parse_mode: "Markdown" });
