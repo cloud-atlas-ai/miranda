@@ -44,9 +44,6 @@ pnpm dev
 # Type checking
 pnpm typecheck
 
-# Linting
-pnpm lint
-
 # Build for production
 pnpm build
 
@@ -59,7 +56,7 @@ pnpm start
 - `pnpm dev` - Start development server with tsx watch mode
 - `pnpm build` - Compile TypeScript to JavaScript in `dist/` directory
 - `pnpm typecheck` - Run TypeScript type checking without emitting files
-- `pnpm lint` - Run ESLint on source files
+- `pnpm lint` - Lint script defined but ESLint not yet configured
 
 ## Code Structure
 
@@ -175,7 +172,6 @@ Currently, there is no test infrastructure in this repository. When adding tests
 ## Review Requirements
 
 - Code must pass TypeScript type checking (`pnpm typecheck`)
-- Code must pass linting (`pnpm lint`)
 - All functions should have clear, descriptive names
 - Error handling should be comprehensive
 - Changes to bot commands should be tested manually via Telegram
@@ -185,8 +181,8 @@ Currently, there is no test infrastructure in this repository. When adding tests
 ## Dependencies to Avoid
 
 - Do not add testing frameworks unless explicitly requested
-- Do not add additional linting tools (ESLint is configured via package.json)
 - Keep dependencies minimal - this is a focused utility bot
+- If adding ESLint, coordinate with the maintainers first
 
 ## Common Patterns
 
