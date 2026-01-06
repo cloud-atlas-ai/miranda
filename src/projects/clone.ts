@@ -113,10 +113,22 @@ export async function cloneAndInit(repoRef: string): Promise<CloneResult> {
   // Clone the repository using execFile to avoid shell injection
   try {
     await execFileAsync("gh", ["repo", "clone", parsed.cloneUrl, projectPath], {
-      timeout: 120000, // 2 minute timeout
+      timeout: 600000, // 10 minute timeout for large repos / slow networks
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const err = error as Error & { killed?: boolean; signal?: string };
+
+    // Provide a clearer message when the clone operation times out
+    if (err.killed && err.signal === "SIGTERM") {
+      return {
+        success: false,
+        error:
+          "Clone timed out after 10 minutes. The repository may be large or the network connection may be slow. " +
+          "You can try again, or clone the repository manually into the projects directory.",
+      };
+    }
+
+    const message = err instanceof Error ? err.message : String(error);
     return { success: false, error: `Clone failed: ${message}` };
   }
 
