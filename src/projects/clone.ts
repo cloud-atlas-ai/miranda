@@ -28,7 +28,7 @@ export function parseRepoRef(
   const trimmed = input.trim();
 
   // GitHub shorthand: owner/repo
-  const shorthandMatch = /^([a-zA-Z0-9_-]+)\/([a-zA-Z0-9._-]+)$/.exec(trimmed);
+  const shorthandMatch = /^([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)$/.exec(trimmed);
   if (shorthandMatch) {
     const [, owner, repo] = shorthandMatch;
     return {
@@ -39,7 +39,7 @@ export function parseRepoRef(
   }
 
   // HTTPS URL: https://github.com/owner/repo.git or https://github.com/owner/repo
-  const httpsMatch = /^https:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9._-]+?)(?:\.git)?$/.exec(
+  const httpsMatch = /^https:\/\/github\.com\/([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+?)(?:\.git)?$/.exec(
     trimmed
   );
   if (httpsMatch) {
@@ -52,7 +52,7 @@ export function parseRepoRef(
   }
 
   // SSH URL: git@github.com:owner/repo.git
-  const sshMatch = /^git@github\.com:([a-zA-Z0-9_-]+)\/([a-zA-Z0-9._-]+?)(?:\.git)?$/.exec(
+  const sshMatch = /^git@github\.com:([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+?)(?:\.git)?$/.exec(
     trimmed
   );
   if (sshMatch) {
