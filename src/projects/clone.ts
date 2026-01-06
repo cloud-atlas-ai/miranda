@@ -11,6 +11,9 @@ const execFileAsync = promisify(execFile);
 /**
  * Parse a GitHub repo reference into owner, repo, and clone URL.
  *
+ * **GitHub Only**: This function only supports GitHub repositories.
+ * Non-GitHub URLs (e.g., GitLab, Bitbucket) will be rejected.
+ *
  * Accepts:
  * - owner/repo (GitHub shorthand)
  * - https://github.com/owner/repo.git
@@ -61,18 +64,8 @@ export function parseRepoRef(
     };
   }
 
-  // Other git URL - extract repo name from path
-  const genericUrlMatch = /^(?:https?|git):\/\/[^/]+\/.*\/([a-zA-Z0-9._-]+?)(?:\.git)?$/.exec(
-    trimmed
-  );
-  if (genericUrlMatch) {
-    return {
-      owner: "unknown",
-      repo: genericUrlMatch[1]!.replace(/\.git$/, ""),
-      cloneUrl: trimmed,
-    };
-  }
-
+  // Reject non-GitHub URLs
+  // We only support GitHub because we use `gh repo clone` which requires GitHub URLs
   return null;
 }
 
@@ -86,13 +79,16 @@ export interface CloneResult {
 /**
  * Clone a repository and initialize ba, sg, wm.
  *
- * @param repoRef - owner/repo or full git URL
+ * **GitHub Only**: This function only supports GitHub repositories.
+ * Uses `gh repo clone` which requires GitHub URLs.
+ *
+ * @param repoRef - owner/repo or full GitHub git URL
  * @returns Result with project path or error message
  */
 export async function cloneAndInit(repoRef: string): Promise<CloneResult> {
   const parsed = parseRepoRef(repoRef);
   if (!parsed) {
-    return { success: false, error: "Invalid repository reference. Use owner/repo or a git URL." };
+    return { success: false, error: "Invalid repository reference. Only GitHub repositories are supported. Use owner/repo or a GitHub URL." };
   }
 
   const projectPath = join(config.projectsDir, parsed.repo);
