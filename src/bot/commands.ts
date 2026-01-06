@@ -545,6 +545,8 @@ async function handleNewProject(ctx: Context): Promise<void> {
     await ctx.reply(
       `Usage: /newproject <repo>
 
+**GitHub repositories only**
+
 Examples:
   /newproject owner/repo
   /newproject https://github.com/owner/repo
