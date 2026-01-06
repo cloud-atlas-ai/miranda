@@ -1,6 +1,39 @@
-import { readdir, readFile, access, constants } from "fs/promises";
-import { join } from "path";
+import { readdir, readFile, access, constants, realpath } from "fs/promises";
+import { join, sep, resolve } from "path";
 import { config } from "../config.js";
+
+/**
+ * Check if a path is safely contained within a parent directory.
+ * Uses realpath canonicalization to resolve symlinks and prevent escapes.
+ * For non-existent paths, falls back to path.resolve() normalization.
+ *
+ * @param childPath - Path to verify (may not exist yet)
+ * @param parentPath - Parent directory that must contain childPath
+ * @returns true if childPath is within parentPath after canonicalization
+ */
+async function isPathWithin(childPath: string, parentPath: string): Promise<boolean> {
+  try {
+    // Try realpath first for existing paths (resolves symlinks)
+    const resolvedChild = await realpath(childPath);
+    const resolvedParent = await realpath(parentPath);
+    // Ensure child starts with parent + separator to prevent prefix attacks
+    // e.g., /projects-evil matching /projects
+    return resolvedChild === resolvedParent ||
+           resolvedChild.startsWith(resolvedParent + sep);
+  } catch {
+    // Path doesn't exist - fall back to resolve() for normalization
+    // This allows validation of non-existent paths while still being secure
+    try {
+      const resolvedParent = await realpath(parentPath);
+      const normalizedChild = resolve(childPath);
+      return normalizedChild === resolvedParent ||
+             normalizedChild.startsWith(resolvedParent + sep);
+    } catch {
+      // Parent doesn't exist or other error
+      return false;
+    }
+  }
+}
 
 export interface ProjectInfo {
   name: string;
@@ -33,6 +66,12 @@ export async function scanProjects(): Promise<ProjectInfo[]> {
 
   for (const entry of entries) {
     const projectPath = join(projectsDir, entry);
+
+    // Verify project path stays within projectsDir (prevents symlink escapes)
+    if (!(await isPathWithin(projectPath, projectsDir))) {
+      continue; // Symlink escapes projectsDir, skip
+    }
+
     const issuesPath = join(projectPath, ".ba", "issues.jsonl");
 
     // Check if .ba/issues.jsonl exists
@@ -97,11 +136,13 @@ export interface TaskInfo {
  * Returns open and in_progress tasks only.
  */
 export async function getProjectTasks(projectName: string): Promise<TaskInfo[]> {
-  // Prevent path traversal - projectName should be a simple directory name
-  if (projectName.includes('/') || projectName.includes('\\') || projectName.includes('..')) {
+  const projectPath = join(config.projectsDir, projectName);
+
+  // Verify project path stays within projectsDir (prevents path traversal and symlink escapes)
+  if (!(await isPathWithin(projectPath, config.projectsDir))) {
     return [];
   }
-  const projectPath = join(config.projectsDir, projectName);
+
   const issuesPath = join(projectPath, ".ba", "issues.jsonl");
   const tasks: TaskInfo[] = [];
 
@@ -147,6 +188,12 @@ export async function findProjectForTask(taskId: string): Promise<string | null>
 
   for (const entry of entries) {
     const projectPath = join(projectsDir, entry);
+
+    // Verify project path stays within projectsDir (prevents symlink escapes)
+    if (!(await isPathWithin(projectPath, projectsDir))) {
+      continue; // Symlink escapes projectsDir, skip
+    }
+
     const issuesPath = join(projectPath, ".ba", "issues.jsonl");
 
     try {
