@@ -54,6 +54,7 @@ ALLOWED_USER_IDS=123,456    # Telegram user IDs (comma-separated)
 MIRANDA_PORT=3847           # HTTP port for hook notifications (default: 3847)
 SQLITE_PATH=./miranda.db    # SQLite database path
 PROJECTS_DIR=~/projects     # Directory to scan for ba projects (default: ~/projects)
+MIRANDA_HOME=~/miranda      # Override Miranda project root (default: derived from module location)
 ```
 
 ## Project Structure
@@ -79,6 +80,7 @@ src/
 |---------|--------|
 | `/projects` | List projects on server with task counts |
 | `/update` | Pull all clean projects (skips dirty/active) |
+| `/selfupdate` | Pull and rebuild Miranda |
 | `/tasks <project>` | List tasks for a project |
 | `/newproject <repo>` | Clone GitHub repo and init ba/sg |
 | `/mouse <task>` | Start mouse skill for task |
