@@ -447,12 +447,15 @@ async function handleStop(ctx: Context): Promise<void> {
     return;
   }
 
-  // Check if input is a fully qualified session name (mouse-*, drummer-*, notes-*)
-  // or a bare task ID that needs the mouse- prefix
+  // Check if input is a fully qualified session name:
+  // - mouse-<taskId>
+  // - <project>-drummer-<timestamp>
+  // - <project>-notes-<pr>
+  // Pattern: matches mouse-*, *-drummer-*, or *-notes-*
   const isFullyQualified =
     input.startsWith("mouse-") ||
-    input.startsWith("drummer-") ||
-    input.startsWith("notes-");
+    /-drummer-\d+$/.test(input) ||
+    /-notes-\d+$/.test(input);
 
   // Try to find session by input (works for both task IDs and tmux names)
   const session = getSession(input);
@@ -488,7 +491,7 @@ async function handleStop(ctx: Context): Promise<void> {
 
 /**
  * Find and remove orphaned tmux sessions.
- * Orphaned = tmux session exists (mouse-*, drummer-*, notes-*) but not tracked in state.
+ * Orphaned = tmux session exists (mouse-*, *-drummer-*, *-notes-*) but not tracked in state.
  */
 async function handleCleanup(ctx: Context): Promise<void> {
   const orphaned = await getOrphanedSessions();
@@ -558,7 +561,10 @@ async function handleDrummer(ctx: Context): Promise<void> {
   });
 
   try {
-    const tmuxName = await spawnSession("drummer", undefined, chatId, { projectPath: project.path });
+    const tmuxName = await spawnSession("drummer", undefined, chatId, {
+      projectPath: project.path,
+      projectName: project.name,
+    });
 
     // Use tmuxName as the session key since drummer has no task ID
     const session: Session = {
@@ -634,7 +640,7 @@ async function handleNotes(ctx: Context): Promise<void> {
   await ctx.reply(`Starting notes for ${projectName} PR #${prNumber}...`, { parse_mode: "Markdown" });
 
   try {
-    const tmuxName = await spawnSession("notes", prNumber, chatId, { projectPath });
+    const tmuxName = await spawnSession("notes", prNumber, chatId, { projectPath, projectName });
 
     const session: Session = {
       taskId: sessionKey,

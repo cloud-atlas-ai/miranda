@@ -5,8 +5,11 @@ import type { SkillType } from "../types.js";
 
 const execAsync = promisify(exec);
 
-// AIDEV-NOTE: tmux session naming convention is "mouse-<taskId>" for mouse skill
-// This allows easy identification and management of Claude skill sessions
+// AIDEV-NOTE: tmux session naming conventions:
+// - mouse: "mouse-<taskId>"
+// - drummer: "<project>-drummer-<timestamp>"
+// - notes: "<project>-notes-<prNumber>"
+// This allows easy identification of which project a session belongs to.
 
 // Pattern: alphanumeric, hyphens, underscores only (ba task IDs follow this)
 const SAFE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
@@ -48,19 +51,19 @@ export function getTmuxName(taskId: string): string {
 
 /**
  * Generate the tmux session name for a drummer session
- * Uses timestamp to allow multiple drummer runs
+ * Uses project name and timestamp for identification
  */
-export function getDrummerTmuxName(): string {
+export function getDrummerTmuxName(projectName: string): string {
   const timestamp = Date.now();
-  return `drummer-${timestamp}`;
+  return `${projectName}-drummer-${timestamp}`;
 }
 
 /**
  * Generate the tmux session name for a notes session
- * Uses PR number for identification
+ * Uses project name and PR number for identification
  */
-export function getNotesTmuxName(prNumber: string): string {
-  return `notes-${prNumber}`;
+export function getNotesTmuxName(projectName: string, prNumber: string): string {
+  return `${projectName}-notes-${prNumber}`;
 }
 
 // Re-export SkillType for consumers that import from sessions.ts
@@ -76,6 +79,7 @@ interface SkillConfig {
 interface SkillOptions {
   taskId?: string;
   baseBranch?: string;
+  projectName?: string;
 }
 
 /**
@@ -83,7 +87,7 @@ interface SkillOptions {
  * Uses switch statement to make adding new skills explicit and catch unknown skills at compile time.
  */
 function getSkillConfig(skill: SkillType, options: SkillOptions): SkillConfig {
-  const { taskId, baseBranch } = options;
+  const { taskId, baseBranch, projectName } = options;
   switch (skill) {
     case "mouse": {
       if (!taskId) {
@@ -100,8 +104,12 @@ function getSkillConfig(skill: SkillType, options: SkillOptions): SkillConfig {
       };
     }
     case "drummer": {
+      if (!projectName) {
+        throw new Error("spawnSession: projectName is required for drummer skill");
+      }
+      validateShellSafe(projectName, "projectName");
       return {
-        tmuxName: getDrummerTmuxName(),
+        tmuxName: getDrummerTmuxName(projectName),
         skillInvocation: "drummer",
       };
     }
@@ -109,9 +117,13 @@ function getSkillConfig(skill: SkillType, options: SkillOptions): SkillConfig {
       if (!taskId) {
         throw new Error("spawnSession: PR number is required for notes skill");
       }
+      if (!projectName) {
+        throw new Error("spawnSession: projectName is required for notes skill");
+      }
       validateShellSafe(taskId, "prNumber");
+      validateShellSafe(projectName, "projectName");
       return {
-        tmuxName: getNotesTmuxName(taskId),
+        tmuxName: getNotesTmuxName(projectName, taskId),
         skillInvocation: `notes ${taskId}`,
       };
     }
@@ -127,6 +139,7 @@ function getSkillConfig(skill: SkillType, options: SkillOptions): SkillConfig {
 export interface SpawnOptions {
   projectPath?: string;
   baseBranch?: string;
+  projectName?: string;
 }
 
 /**
@@ -147,7 +160,11 @@ export async function spawnSession(
   // _chatId is tracked by the caller (state/db.ts), not used in tmux command
 
   // Get skill-specific configuration (validates inputs and determines tmux name)
-  const { tmuxName, skillInvocation } = getSkillConfig(skill, { taskId, baseBranch: options?.baseBranch });
+  const { tmuxName, skillInvocation } = getSkillConfig(skill, {
+    taskId,
+    baseBranch: options?.baseBranch,
+    projectName: options?.projectName,
+  });
 
   // Build the claude command
   // Format: env PATH=$HOME/.cargo/bin:$PATH claude '<skill> [taskId]' --dangerously-skip-permissions
@@ -210,7 +227,8 @@ export async function sendKeys(tmuxName: string, text: string): Promise<void> {
 }
 
 /**
- * List Miranda-managed tmux sessions (those with "mouse-" prefix)
+ * List Miranda-managed tmux sessions
+ * Matches: mouse-*, *-drummer-*, *-notes-*
  *
  * @returns Array of tmux session info for Miranda sessions only
  */
@@ -233,11 +251,14 @@ export async function listTmuxSessions(): Promise<TmuxSession[]> {
           attached: attached === "1",
         };
       })
-      // Only return Miranda-managed sessions (mouse-*, drummer-*, or notes-* prefix)
+      // Only return Miranda-managed sessions:
+      // - mouse-<taskId>
+      // - <project>-drummer-<timestamp>
+      // - <project>-notes-<pr>
       .filter((session) =>
         session.name.startsWith("mouse-") ||
-        session.name.startsWith("drummer-") ||
-        session.name.startsWith("notes-")
+        /-drummer-\d+$/.test(session.name) ||
+        /-notes-\d+$/.test(session.name)
       );
   } catch (error) {
     // No tmux server running means no sessions
