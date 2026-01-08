@@ -58,6 +58,7 @@ export function getRestartChatId(): number | null {
     const timestamp = parseInt(timestampStr, 10);
 
     if (isNaN(chatId)) return null;
+    if (isNaN(timestamp)) return null;
 
     // Only accept if file was written within last 60 seconds (fresh restart)
     // This prevents spurious "back online" messages after crashes
