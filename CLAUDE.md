@@ -181,6 +181,86 @@ sg --version    # Superego
 wm --version    # Working memory
 ```
 
+## Deployment
+
+### Option 1: User-level systemd (no root needed)
+
+Best for dedicated user without sudo access.
+
+```bash
+# As the miranda user:
+
+# Create user systemd directory
+mkdir -p ~/.config/systemd/user
+
+# Create service file
+cat > ~/.config/systemd/user/miranda.service << 'EOF'
+[Unit]
+Description=Miranda - Telegram bot for remote Claude orchestration
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/miranda
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=5
+
+Environment=NODE_ENV=production
+Environment=PATH=%h/.cargo/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=%h/.config/miranda/env
+
+[Install]
+WantedBy=default.target
+EOF
+
+# Create env file
+mkdir -p ~/.config/miranda
+cat > ~/.config/miranda/env << 'EOF'
+TELEGRAM_BOT_TOKEN=xxx
+ALLOWED_USER_IDS=123,456
+PROJECTS_DIR=/home/miranda/projects
+EOF
+
+# Enable lingering (one-time, needs root)
+sudo loginctl enable-linger miranda
+
+# Start service
+systemctl --user daemon-reload
+systemctl --user enable miranda
+systemctl --user start miranda
+systemctl --user status miranda
+
+# View logs
+journalctl --user -u miranda -f
+```
+
+### Option 2: System-level systemd (template)
+
+For running as any user via `miranda@<username>`.
+
+```bash
+# As root:
+sudo cp ~/miranda/scripts/miranda.service /etc/systemd/system/miranda@.service
+sudo systemctl daemon-reload
+
+# Create env file for user
+mkdir -p ~/.config/miranda
+cat > ~/.config/miranda/env << 'EOF'
+TELEGRAM_BOT_TOKEN=xxx
+ALLOWED_USER_IDS=123,456
+PROJECTS_DIR=/home/drazen/projects
+EOF
+
+# Enable and start (replace drazen with your username)
+sudo systemctl enable miranda@drazen
+sudo systemctl start miranda@drazen
+sudo systemctl status miranda@drazen
+
+# View logs
+journalctl -u miranda@drazen -f
+```
+
 ## Implementation Phases
 
 ### Phase 1: MVP (Dogfood)
