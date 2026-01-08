@@ -79,13 +79,37 @@ src/
 |---------|--------|
 | `/projects` | List projects on server with task counts |
 | `/tasks <project>` | List tasks for a project |
+| `/newproject <repo>` | Clone GitHub repo and init ba/sg/wm |
 | `/mouse <task>` | Start mouse skill for task |
 | `/drummer` | Run batch merge skill |
 | `/notes <pr-number>` | Address human PR feedback |
 | `/status` | Show all active sessions |
 | `/logs <task>` | Show recent output |
 | `/stop <task>` | Kill a session |
+| `/cleanup` | Remove orphaned tmux sessions |
 | `/ssh` | Get SSH command for manual access |
+
+### `/newproject` Details
+
+Clones a GitHub repository and initializes development tools in one step.
+
+**Usage:**
+```
+/newproject owner/repo
+/newproject https://github.com/owner/repo
+/newproject git@github.com:owner/repo.git
+```
+
+**What happens:**
+1. Clones to `$PROJECTS_DIR/<repo-name>` via `gh repo clone`
+2. Runs `ba init` (task tracking)
+3. Runs `sg init` (superego)
+4. Runs `wm init` (working memory)
+
+**Notes:**
+- GitHub only (uses `gh` CLI)
+- Reports partial success if clone works but init fails
+- 10-minute clone timeout, 30-second per-tool init timeout
 
 ## Hook Integration
 
