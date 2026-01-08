@@ -78,7 +78,7 @@ export async function cleanupOrphanedSessions(): Promise<number> {
  * - /stop <session> - Kill a session (task-id or full session name)
  * - /cleanup - Remove orphaned tmux sessions
  * - /drummer <project> - Run batch merge for a project
- * - /notes <pr-number> - Address PR feedback
+ * - /notes <project> <pr-number> - Address PR feedback
  * - /newproject <repo> - Clone repo and init ba/sg/wm
  * - /update - Pull all clean projects
  * - /logs, /ssh - Stubs for future implementation
@@ -113,7 +113,7 @@ I give voice to the Primer. Commands:
 /newproject <repo> - Clone and init new project
 /mouse <task-id> - Start a mouse on a task
 /drummer <project> - Run batch merge for project
-/notes <pr-number> - Address PR feedback
+/notes <project> <pr> - Address PR feedback
 /status - Show active sessions
 /stop <session> - Stop a session
 /cleanup - Remove orphaned sessions
@@ -549,23 +549,43 @@ Reviewing PRs with \`drummer-merge\` label...`,
 }
 
 async function handleNotes(ctx: Context): Promise<void> {
-  const prNumber = ctx.match?.toString().trim();
-  if (!prNumber) {
-    await ctx.reply("Usage: /notes <pr-number>");
+  const args = ctx.match?.toString().trim();
+  if (!args) {
+    await ctx.reply("Usage: /notes <project> <pr-number>");
     return;
   }
+
+  // Parse arguments: <project> <pr-number>
+  const parts = args.split(/\s+/);
+  if (parts.length !== 2) {
+    await ctx.reply("Usage: /notes <project> <pr-number>\n\nExample: /notes miranda 42");
+    return;
+  }
+
+  const [projectName, prNumber] = parts;
 
   // Validate PR number is numeric
   if (!/^\d+$/.test(prNumber)) {
-    await ctx.reply("Error: PR number must be numeric (e.g., /notes 42)");
+    await ctx.reply("Error: PR number must be numeric (e.g., /notes miranda 42)");
     return;
   }
 
-  // Use PR number as session key
-  const sessionKey = `notes-${prNumber}`;
+  // Validate project exists in PROJECTS_DIR
+  const projectPath = `${config.projectsDir}/${projectName}`;
+  const projects = await scanProjects();
+  const projectExists = projects.some((p) => p.name === projectName);
+  if (!projectExists) {
+    await ctx.reply(`Error: Project \`${projectName}\` not found in ${config.projectsDir}`, {
+      parse_mode: "Markdown",
+    });
+    return;
+  }
+
+  // Use project + PR number as session key
+  const sessionKey = `notes-${projectName}-${prNumber}`;
   const existing = getSession(sessionKey);
   if (existing) {
-    await ctx.reply(`Notes session for PR #${prNumber} already exists (${existing.status})`);
+    await ctx.reply(`Notes session for ${projectName} PR #${prNumber} already exists (${existing.status})`);
     return;
   }
 
@@ -575,10 +595,10 @@ async function handleNotes(ctx: Context): Promise<void> {
     return;
   }
 
-  await ctx.reply(`Starting notes for PR #${prNumber}...`, { parse_mode: "Markdown" });
+  await ctx.reply(`Starting notes for ${projectName} PR #${prNumber}...`, { parse_mode: "Markdown" });
 
   try {
-    const tmuxName = await spawnSession("notes", prNumber, chatId);
+    const tmuxName = await spawnSession("notes", prNumber, chatId, projectPath);
 
     const session: Session = {
       taskId: sessionKey,
@@ -591,7 +611,7 @@ async function handleNotes(ctx: Context): Promise<void> {
     setSession(sessionKey, session);
 
     await ctx.reply(
-      `Notes running for PR #${prNumber}
+      `Notes running for ${projectName} PR #${prNumber}
 Session: \`${tmuxName}\`
 
 Addressing human feedback...`,
