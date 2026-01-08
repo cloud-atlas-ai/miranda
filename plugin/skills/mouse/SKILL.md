@@ -98,16 +98,17 @@ Use `--base` for stacked PRs where this task depends on another in-flight PR.
       - `ba finish` if task, commit code + `.ba/`
     - Push all changes
     - Repeat until CodeRabbit has no new comments
-16. Cleanup worktree:
+16. Return to main repo and signal completion (if `$MIRANDA_PORT` is set):
     ```bash
     cd <original-dir>
-    git worktree remove .worktrees/<task-id>
-    ```
-17. Signal completion to Miranda (if `$MIRANDA_PORT` is set):
-    ```bash
     curl -sS -X POST "http://localhost:${MIRANDA_PORT}/complete" \
       -H "Content-Type: application/json" \
       -d "{\"session\": \"$TMUX_SESSION\", \"status\": \"success\", \"pr\": \"<pr-url>\"}"
+    ```
+    **CRITICAL:** Signal BEFORE cleanup. If still in worktree when it's deleted, curl fails.
+17. Cleanup worktree:
+    ```bash
+    git worktree remove .worktrees/<task-id>
     ```
 18. Exit and report PR URL
 
@@ -201,8 +202,9 @@ CodeRabbit found 2 issues:
 Pushing...
 CodeRabbit review passed.
 
-Cleaning up worktree...
+Returning to main repo...
 Signaling completion to Miranda...
+Cleaning up worktree...
 Done.
 ```
 
