@@ -8,7 +8,7 @@ Type=simple
 # is blocked when running as root for security reasons.
 User=%i
 Group=%i
-WorkingDirectory=/home/%i/miranda
+WorkingDirectory=/home/%i/projects/miranda
 ExecStart=/usr/bin/node dist/index.js
 Restart=always
 RestartSec=5
