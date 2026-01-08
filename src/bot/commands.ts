@@ -14,7 +14,7 @@ import {
   deleteSession,
   getAllSessions,
 } from "../state/sessions.js";
-import { scanProjects, getProjectTasks, findProjectForTask, isRepoDirty, pullProject, type TaskInfo, type UpdateResult } from "../projects/scanner.js";
+import { scanProjects, getProjectTasks, findProjectForTask, isRepoDirty, pullProject, updateProjectIfClean, type TaskInfo, type UpdateResult } from "../projects/scanner.js";
 import { cloneAndInit } from "../projects/clone.js";
 import { config } from "../config.js";
 import type { Session } from "../types.js";
@@ -170,6 +170,10 @@ async function handleTasks(ctx: Context): Promise<void> {
     return;
   }
 
+  // Auto-update project before listing tasks
+  const projectPath = `${config.projectsDir}/${projectName}`;
+  await updateProjectIfClean(projectPath);
+
   const tasks = await getProjectTasks(projectName);
 
   if (tasks.length === 0) {
@@ -193,6 +197,10 @@ export async function handleTasksCallback(
   projectName: string,
   sendMessage: (text: string, options?: { parse_mode?: "Markdown" | "MarkdownV2" | "HTML"; reply_markup?: InlineKeyboard }) => Promise<void>
 ): Promise<void> {
+  // Auto-update project before listing tasks
+  const projectPath = `${config.projectsDir}/${projectName}`;
+  await updateProjectIfClean(projectPath);
+
   const tasks = await getProjectTasks(projectName);
 
   if (tasks.length === 0) {
@@ -225,9 +233,19 @@ export async function handleMouseCallback(
   }
 
   // Auto-discover project from task ID
-  const projectPath = await findProjectForTask(taskId);
+  let projectPath = await findProjectForTask(taskId);
   if (!projectPath) {
     await sendMessage(`Task \`${taskId}\` not found in any project`, { parse_mode: "Markdown" });
+    return;
+  }
+
+  // Auto-update project before starting mouse
+  await updateProjectIfClean(projectPath);
+
+  // Re-check task exists after update (task list may have changed)
+  projectPath = await findProjectForTask(taskId);
+  if (!projectPath) {
+    await sendMessage(`Task \`${taskId}\` no longer exists after update`, { parse_mode: "Markdown" });
     return;
   }
 
@@ -279,9 +297,19 @@ async function handleMouse(ctx: Context): Promise<void> {
   }
 
   // Auto-discover project from task ID
-  const projectPath = await findProjectForTask(taskId);
+  let projectPath = await findProjectForTask(taskId);
   if (!projectPath) {
     await ctx.reply(`Task \`${taskId}\` not found in any project`, { parse_mode: "Markdown" });
+    return;
+  }
+
+  // Auto-update project before starting mouse
+  await updateProjectIfClean(projectPath);
+
+  // Re-check task exists after update (task list may have changed)
+  projectPath = await findProjectForTask(taskId);
+  if (!projectPath) {
+    await ctx.reply(`Task \`${taskId}\` no longer exists after update`, { parse_mode: "Markdown" });
     return;
   }
 
