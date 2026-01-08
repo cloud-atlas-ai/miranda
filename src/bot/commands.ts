@@ -95,7 +95,7 @@ export async function cleanupOrphanedSessions(): Promise<number> {
 
 /**
  * Discover orphaned tmux sessions on startup and repopulate state.
- * Creates Session objects with status='unknown' for any tmux sessions
+ * Creates Session objects with status='running' for any tmux sessions
  * that aren't tracked in state (e.g., after a restart).
  * Returns the count of sessions discovered.
  */
