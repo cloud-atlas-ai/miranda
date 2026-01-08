@@ -1,3 +1,4 @@
+import { basename } from "path";
 import type { Bot, Context } from "grammy";
 import { InlineKeyboard } from "grammy";
 import {
@@ -286,7 +287,8 @@ export async function handleMouseCallback(
     return;
   }
 
-  await sendMessage(`Starting mouse for \`${taskId}\`...`, { parse_mode: "Markdown" });
+  const projectName = basename(projectPath) || "unknown";
+  await sendMessage(`Starting mouse for \`${projectName}: ${taskId}\`...`, { parse_mode: "Markdown" });
 
   try {
     const tmuxName = await spawnSession("mouse", taskId, chatId, { projectPath });
@@ -357,8 +359,9 @@ async function handleMouse(ctx: Context): Promise<void> {
     return;
   }
 
+  const projectName = basename(projectPath) || "unknown";
   const baseInfo = baseBranch ? ` (base: \`${baseBranch}\`)` : "";
-  await ctx.reply(`Starting mouse for \`${taskId}\`${baseInfo}...`, { parse_mode: "Markdown" });
+  await ctx.reply(`Starting mouse for \`${projectName}: ${taskId}\`${baseInfo}...`, { parse_mode: "Markdown" });
 
   try {
     const spawnOptions: SpawnOptions = { projectPath };
