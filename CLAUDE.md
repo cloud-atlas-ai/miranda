@@ -249,16 +249,16 @@ mkdir -p ~/.config/miranda
 cat > ~/.config/miranda/env << 'EOF'
 TELEGRAM_BOT_TOKEN=xxx
 ALLOWED_USER_IDS=123,456
-PROJECTS_DIR=/home/drazen/projects
+PROJECTS_DIR=/home/miranda/projects
 EOF
 
-# Enable and start (replace drazen with your username)
-sudo systemctl enable miranda@drazen
-sudo systemctl start miranda@drazen
-sudo systemctl status miranda@drazen
+# Enable and start
+sudo systemctl enable miranda@miranda
+sudo systemctl start miranda@miranda
+sudo systemctl status miranda@miranda
 
 # View logs
-journalctl -u miranda@drazen -f
+journalctl -u miranda@miranda -f
 ```
 
 ## Implementation Phases
