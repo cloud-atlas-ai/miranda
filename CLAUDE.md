@@ -91,6 +91,7 @@ src/
 | `/logs <task>` | Show recent output |
 | `/stop <task>` | Kill a session |
 | `/cleanup` | Remove orphaned tmux sessions |
+| `/killall` | Kill all sessions (with confirmation) |
 | `/ssh` | Get SSH command for manual access |
 
 ### `/newproject` Details
