@@ -323,7 +323,7 @@ export async function handleTasksCallback(
 export async function handleMouseCallback(
   taskId: string,
   chatId: number,
-  sendMessage: (text: string, options?: { parse_mode?: "Markdown" | "MarkdownV2" | "HTML" }) => Promise<void>
+  sendMessage: (text: string, options?: { parse_mode?: "Markdown" | "MarkdownV2" | "HTML"; reply_markup?: InlineKeyboard }) => Promise<void>
 ): Promise<void> {
   // Check if session already exists
   const existing = getSession(taskId);
@@ -369,11 +369,12 @@ export async function handleMouseCallback(
     };
     setSession(taskId, session);
 
+    const keyboard = new InlineKeyboard().text(`Stop ${taskId}`, `stop:${taskId}`);
     await sendMessage(
       `Mouse running for \`${taskId}\`
 Branch: \`ba/${taskId}\`
 Session: \`${tmuxName}\``,
-      { parse_mode: "Markdown" }
+      { parse_mode: "Markdown", reply_markup: keyboard }
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -446,11 +447,12 @@ async function handleMouse(ctx: Context): Promise<void> {
     };
     setSession(taskId, session);
 
+    const keyboard = new InlineKeyboard().text(`Stop ${taskId}`, `stop:${taskId}`);
     await ctx.reply(
       `Mouse running for \`${taskId}\`
 Branch: \`ba/${taskId}\`${baseBranch ? `\nBase: \`${baseBranch}\`` : ""}
 Session: \`${tmuxName}\``,
-      { parse_mode: "Markdown" }
+      { parse_mode: "Markdown", reply_markup: keyboard }
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -643,12 +645,13 @@ async function handleDrummer(ctx: Context): Promise<void> {
     };
     setSession(tmuxName, session);
 
+    const keyboard = new InlineKeyboard().text(`Stop ${tmuxName}`, `stop:${tmuxName}`);
     await ctx.reply(
       `Drummer running for \`${projectName}\`
 Session: \`${tmuxName}\`
 
 Reviewing PRs with \`drummer-merge\` label...`,
-      { parse_mode: "Markdown" }
+      { parse_mode: "Markdown", reply_markup: keyboard }
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -718,12 +721,13 @@ async function handleNotes(ctx: Context): Promise<void> {
     };
     setSession(sessionKey, session);
 
+    const keyboard = new InlineKeyboard().text(`Stop ${sessionKey}`, `stop:${sessionKey}`);
     await ctx.reply(
       `Notes running for ${projectName} PR #${prNumber}
 Session: \`${tmuxName}\`
 
 Addressing human feedback...`,
-      { parse_mode: "Markdown" }
+      { parse_mode: "Markdown", reply_markup: keyboard }
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
