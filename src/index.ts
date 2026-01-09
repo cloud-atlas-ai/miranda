@@ -125,6 +125,29 @@ bot.on("callback_query:data", async (ctx) => {
     return;
   }
 
+  // Handle stop:<taskId> callback from session start messages
+  if (data.startsWith("stop:")) {
+    const taskId = data.slice(5); // Remove "stop:" prefix
+    const session = getSession(taskId);
+    if (!session) {
+      await ctx.answerCallbackQuery({ text: "Session not found" });
+      return;
+    }
+
+    try {
+      await killSession(session.tmuxName);
+      deleteSession(taskId);
+      await ctx.answerCallbackQuery({ text: `Stopped ${taskId}` });
+      await ctx.editMessageText(`Stopped session \`${taskId}\``, {
+        parse_mode: "Markdown",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await ctx.answerCallbackQuery({ text: `Error: ${message}` });
+    }
+    return;
+  }
+
   // Handle question/answer callbacks
   const action = parseCallback(data);
 
