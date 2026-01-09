@@ -261,7 +261,7 @@ export async function stopSession(tmuxName: string): Promise<boolean> {
     if (!(await sessionExists(tmuxName))) {
       return true;
     }
-    // Fall through to force kill
+    // Fall through to wait loop, then force kill if still running
   }
 
   // Wait up to 3 seconds for graceful exit (check every 500ms)
