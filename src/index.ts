@@ -1,6 +1,6 @@
 import { Bot } from "grammy";
 import { config, validateConfig } from "./config.js";
-import { registerCommands, cleanupOrphanedSessions, handleTasksCallback, handleMouseCallback, discoverOrphanedSessions } from "./bot/commands.js";
+import { registerCommands, cleanupOrphanedSessions, handleTasksCallback, handleMouseCallback, discoverOrphanedSessions, executeKillall } from "./bot/commands.js";
 import { parseCallback, formatAnswer, buildQuestionKeyboard } from "./bot/keyboards.js";
 import { createHookServer, type HookServer } from "./hooks/server.js";
 import { sendKeys, killSession } from "./tmux/sessions.js";
@@ -90,6 +90,35 @@ bot.on("callback_query:data", async (ctx) => {
   if (data === "cleanup:cancel") {
     await ctx.answerCallbackQuery({ text: "Cancelled" });
     await ctx.editMessageText("*Cleanup*\n\n_Cancelled_", {
+      parse_mode: "Markdown",
+    });
+    return;
+  }
+
+  // Handle killall callbacks
+  if (data === "killall:confirm") {
+    try {
+      const { killed, errors } = await executeKillall();
+      const errorMsg = errors.length > 0
+        ? `\n\n_Errors: ${errors.join(", ")}_`
+        : "";
+      await ctx.answerCallbackQuery({ text: `Killed ${killed} session(s)` });
+      await ctx.editMessageText(`*Kill All*\n\n_Killed ${killed} session(s)_${errorMsg}`, {
+        parse_mode: "Markdown",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await ctx.answerCallbackQuery({ text: `Error: ${message}` });
+      await ctx.editMessageText(`*Kill All*\n\n_Error: ${message}_`, {
+        parse_mode: "Markdown",
+      }).catch(() => {}); // Best-effort update
+    }
+    return;
+  }
+
+  if (data === "killall:cancel") {
+    await ctx.answerCallbackQuery({ text: "Cancelled" });
+    await ctx.editMessageText("*Kill All*\n\n_Cancelled_", {
       parse_mode: "Markdown",
     });
     return;

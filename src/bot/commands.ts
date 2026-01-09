@@ -159,6 +159,7 @@ let shutdownFn: ShutdownFn | undefined;
  * - /status - List all sessions
  * - /stop <session> - Kill a session (task-id or full session name)
  * - /cleanup - Remove orphaned tmux sessions
+ * - /killall - Kill all sessions with confirmation
  * - /drummer <project> - Run batch merge for a project
  * - /notes <project> <pr-number> - Address PR feedback
  * - /newproject <repo> - Clone repo and init ba/sg/wm
@@ -178,6 +179,7 @@ export function registerCommands(bot: Bot<Context>, shutdown: ShutdownFn): void 
   bot.command("status", handleStatus);
   bot.command("stop", handleStop);
   bot.command("cleanup", handleCleanup);
+  bot.command("killall", handleKillall);
   bot.command("drummer", handleDrummer);
   bot.command("notes", handleNotes);
   bot.command("newproject", handleNewProject);
@@ -209,6 +211,7 @@ I give voice to the Primer. Commands:
 /status - Show active sessions
 /stop <session> - Stop a session
 /cleanup - Remove orphaned sessions
+/killall - Kill all sessions
 /logs <task-id> - View session logs
 /ssh - Get SSH command
 
@@ -586,6 +589,95 @@ async function handleCleanup(ctx: Context): Promise<void> {
     parse_mode: "Markdown",
     reply_markup: keyboard,
   });
+}
+
+async function handleKillall(ctx: Context): Promise<void> {
+  const sessions = getAllSessions();
+  const tmuxSessions = await listTmuxSessions();
+
+  if (sessions.length === 0 && tmuxSessions.length === 0) {
+    await ctx.reply("*Kill All*\n\n_No sessions to kill_", {
+      parse_mode: "Markdown",
+    });
+    return;
+  }
+
+  // Build message listing all sessions that will be killed
+  const lines: string[] = ["*Kill All Sessions*", ""];
+
+  if (sessions.length > 0) {
+    lines.push("*Tracked sessions:*");
+    for (const s of sessions) {
+      const statusEmoji =
+        s.status === "waiting_input" ? "⏸️" :
+        s.status === "running" ? "🔄" : "📋";
+      lines.push(`  ${statusEmoji} \`${s.taskId}\` (${s.skill})`);
+    }
+    lines.push("");
+  }
+
+  // Find orphaned tmux sessions (in tmux but not tracked)
+  const trackedNames = new Set(sessions.map((s) => s.tmuxName));
+  const orphaned = tmuxSessions.filter((t) => !trackedNames.has(t.name));
+  if (orphaned.length > 0) {
+    lines.push("*Orphaned tmux sessions:*");
+    for (const t of orphaned) {
+      lines.push(`  \`${t.name}\``);
+    }
+    lines.push("");
+  }
+
+  const totalCount = sessions.length + orphaned.length;
+  lines.push(`_${totalCount} session(s) will be terminated_`);
+
+  // Build confirmation keyboard
+  const keyboard = new InlineKeyboard()
+    .text("Kill All", "killall:confirm")
+    .text("Cancel", "killall:cancel");
+
+  await ctx.reply(lines.join("\n"), {
+    parse_mode: "Markdown",
+    reply_markup: keyboard,
+  });
+}
+
+/**
+ * Execute killall - terminate all sessions and clear state.
+ * Exported for use by callback handler.
+ */
+export async function executeKillall(): Promise<{ killed: number; errors: string[] }> {
+  const sessions = getAllSessions();
+  const tmuxSessions = await listTmuxSessions();
+  const errors: string[] = [];
+
+  // Collect all tmux session names to kill (both tracked and orphaned)
+  const tmuxNamesToKill = new Set<string>();
+  for (const s of sessions) {
+    tmuxNamesToKill.add(s.tmuxName);
+  }
+  for (const t of tmuxSessions) {
+    tmuxNamesToKill.add(t.name);
+  }
+
+  // Kill all tmux sessions
+  const namesToKill = Array.from(tmuxNamesToKill);
+  const killResults = await Promise.allSettled(
+    namesToKill.map((name) => killSession(name))
+  );
+
+  // Check for errors
+  killResults.forEach((result, idx) => {
+    if (result.status === "rejected") {
+      errors.push(`${namesToKill[idx]}: ${result.reason}`);
+    }
+  });
+
+  // Clear all tracked sessions from state
+  for (const s of sessions) {
+    deleteSession(s.taskId);
+  }
+
+  return { killed: tmuxNamesToKill.size, errors };
 }
 
 async function handleDrummer(ctx: Context): Promise<void> {
