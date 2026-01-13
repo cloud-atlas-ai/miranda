@@ -1,11 +1,11 @@
 ---
 name: notes
-description: Address PR comments, checkout branch, resolve feedback, push fixes
+description: Address PR comments in worktree, resolve feedback, push fixes
 ---
 
 # Notes
 
-Director's notes to ractors. Address feedback on a PR - checkout branch, resolve comments, push fixes.
+Director's notes to ractors. Address feedback on a PR - work in isolated worktree, resolve comments, push fixes.
 
 ## Invocation
 
@@ -15,7 +15,6 @@ Director's notes to ractors. Address feedback on a PR - checkout branch, resolve
 
 ## Prerequisites
 
-- **Clean working tree**: No uncommitted changes (gh pr checkout may fail otherwise)
 - **Repo context**: Run from the repo root where the PR exists
 - **Not tracked as ba task**: This skill is ephemeral - it responds to feedback on an existing PR, not a new work item
 
@@ -26,10 +25,21 @@ Director's notes to ractors. Address feedback on a PR - checkout branch, resolve
    cat .wm/dive_context.md 2>/dev/null || echo "No dive context"
    ```
 
-2. Checkout the PR branch:
+2. Get PR branch info and create worktree:
    ```bash
-   gh pr checkout <pr-number>
+   # Save original directory for cleanup
+   ORIGINAL_DIR=$(pwd)
+
+   # Get the PR branch name
+   BRANCH=$(gh pr view <pr-number> --json headRefName -q .headRefName)
+
+   # Fetch and create worktree tracking the remote branch
+   git fetch origin
+   git worktree add .worktrees/pr-<pr-number> -B $BRANCH origin/$BRANCH
+   cd .worktrees/pr-<pr-number>
+   sg init
    ```
+   Note: `-B $BRANCH` creates/resets the local branch to track origin.
 
 3. Fetch PR comments (both top-level and inline review comments):
    ```bash
@@ -85,7 +95,13 @@ Director's notes to ractors. Address feedback on a PR - checkout branch, resolve
      -f body="Fixed in $(git rev-parse --short HEAD)"
    ```
 
-10. Exit and report:
+10. Cleanup worktree:
+    ```bash
+    cd $ORIGINAL_DIR
+    git worktree remove .worktrees/pr-<pr-number>
+    ```
+
+11. Exit and report:
    - List addressed comments
    - Note any unresolved items that need human decision
    - Provide PR URL
@@ -145,8 +161,11 @@ curl -sS -X POST "http://localhost:${MIRANDA_PORT}/complete" \
 ```
 $ /notes 42
 
-Checking out PR #42...
-Switched to branch 'ba/abc-123'
+Getting PR #42 info...
+Branch: ba/abc-123
+
+Creating worktree .worktrees/pr-42 on branch ba/abc-123
+Initializing superego...
 
 Fetching comments...
 Found 4 comments:
@@ -184,6 +203,7 @@ Pushing...
 To github.com:org/repo.git
    f1e2d3c..a1b2c3d  ba/abc-123 -> ba/abc-123
 
+Cleaning up worktree...
 Signaling blocked (comment 4 needs decision)...
 
 Done.
@@ -198,17 +218,23 @@ PR: https://github.com/org/repo/pull/42
 ```console
 $ /notes 43
 
-Checking out PR #43...
+Getting PR #43 info...
+Branch: feature/add-caching
+
+Creating worktree .worktrees/pr-43 on branch feature/add-caching
+Initializing superego...
+
 Fetching comments...
 Found 2 comments:
-  1. [human] "Fix typo in variable name" (line 12)
-  2. [human] "Add logging here" (line 45)
+  1. "Fix typo in variable name" (line 12)
+  2. "Add logging here" (line 45)
 
 Addressing comment 1: Fix typo...
 Addressing comment 2: Add logging...
 Committing fixes...
 Pushing...
 
+Cleaning up worktree...
 Signaling success...
 
 Done.
