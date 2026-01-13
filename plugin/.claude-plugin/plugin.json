@@ -3,9 +3,9 @@
   "version": "0.2.2",
   "description": "Mouse, Drummer, and Notes skills for autonomous task execution, batch PR merging, and PR feedback handling",
   "author": {
-    "name": "Drazen Urch",
-    "email": "drazen@urch.eu",
-    "url": "https://github.com/cloud-atlas-ai"
+    "name": "Open Horizon Labs",
+    "email": "hi@ohl.dev",
+    "url": "https://github.com/open-horizon-labs"
   },
-  "repository": "https://github.com/cloud-atlas-ai/miranda"
+  "repository": "https://github.com/open-horizon-labs/miranda"
 }
