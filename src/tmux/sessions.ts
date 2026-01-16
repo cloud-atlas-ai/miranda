@@ -59,6 +59,14 @@ export function getDrummerTmuxName(projectName: string): string {
 }
 
 /**
+ * Generate the tmux session name for an oh-task session
+ * Uses project name and issue number for identification
+ */
+export function getOhTaskTmuxName(projectName: string, issueNumber: string): string {
+  return `${projectName}-oh-task-${issueNumber}`;
+}
+
+/**
  * Generate the tmux session name for a notes session
  * Uses project name and PR number for identification
  */
@@ -125,6 +133,24 @@ function getSkillConfig(skill: SkillType, options: SkillOptions): SkillConfig {
       return {
         tmuxName: getNotesTmuxName(projectName, taskId),
         skillInvocation: `notes ${taskId}`,
+      };
+    }
+    case "oh-task": {
+      if (!taskId) {
+        throw new Error("spawnSession: issue number is required for oh-task skill");
+      }
+      if (!projectName) {
+        throw new Error("spawnSession: projectName is required for oh-task skill");
+      }
+      validateShellSafe(taskId, "issueNumber");
+      validateShellSafe(projectName, "projectName");
+      if (baseBranch) {
+        validateBranchSafe(baseBranch, "baseBranch");
+      }
+      const baseArg = baseBranch ? ` ${baseBranch}` : "";
+      return {
+        tmuxName: getOhTaskTmuxName(projectName, taskId),
+        skillInvocation: `oh-task ${taskId}${baseArg}`,
       };
     }
     default: {

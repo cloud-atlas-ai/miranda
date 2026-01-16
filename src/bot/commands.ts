@@ -205,6 +205,7 @@ export function registerCommands(bot: Bot<Context>, shutdown: ShutdownFn): void 
   bot.command("killall", handleKillall);
   bot.command("drummer", handleDrummer);
   bot.command("notes", handleNotes);
+  bot.command("ohtask", handleOhTask);
   bot.command("newproject", handleNewProject);
   bot.command("pull", handlePull);
   bot.command("selfupdate", handleSelfUpdate);
@@ -230,7 +231,8 @@ I give voice to the Primer. Commands:
 /selfupdate - Pull and rebuild Miranda
 /restart - Graceful restart
 /reset <project> - Hard reset project to origin
-/mouse <task-id> - Start a mouse on a task
+/mouse <task-id> - Start a mouse on a ba task
+/ohtask <project> <issue> - Start on a GitHub issue
 /drummer <project> - Run batch merge for project
 /notes <project> <pr> - Address PR feedback
 /status - Show active sessions
@@ -863,6 +865,89 @@ Addressing human feedback...`,
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await ctx.reply(`Failed to start notes: ${message}`);
+  }
+}
+
+async function handleOhTask(ctx: Context): Promise<void> {
+  const args = ctx.match?.toString().trim();
+  if (!args) {
+    await ctx.reply("Usage: /ohtask <project> <issue-number> [branch]");
+    return;
+  }
+
+  // Parse arguments: <project> <issue-number> [branch]
+  const parts = args.split(/\s+/);
+  if (parts.length < 2 || parts.length > 3) {
+    await ctx.reply("Usage: /ohtask <project> <issue-number> [branch]\n\nExample: /ohtask miranda 42");
+    return;
+  }
+
+  const [projectName, issueNumber, baseBranch] = parts;
+
+  // Strip leading # from issue number if present
+  const normalizedIssue = issueNumber.replace(/^#/, "");
+
+  // Validate issue number is numeric
+  if (!/^\d+$/.test(normalizedIssue)) {
+    await ctx.reply("Error: Issue number must be numeric (e.g., /ohtask miranda 42 or /ohtask miranda #42)");
+    return;
+  }
+
+  // Validate project exists in PROJECTS_DIR
+  const projectPath = `${config.projectsDir}/${projectName}`;
+  const projects = await scanProjects();
+  const projectExists = projects.some((p) => p.name === projectName);
+  if (!projectExists) {
+    await ctx.reply(`Error: Project \`${projectName}\` not found in ${config.projectsDir}`, {
+      parse_mode: "Markdown",
+    });
+    return;
+  }
+
+  // Use project + issue number as session key
+  const sessionKey = `oh-task-${projectName}-${normalizedIssue}`;
+  const existing = getSession(sessionKey);
+  if (existing) {
+    await ctx.reply(`oh-task session for ${projectName} #${normalizedIssue} already exists (${existing.status})`);
+    return;
+  }
+
+  const chatId = ctx.chat?.id;
+  if (!chatId) {
+    await ctx.reply("Error: Could not determine chat ID");
+    return;
+  }
+
+  const baseInfo = baseBranch ? ` (base: \`${baseBranch}\`)` : "";
+  await ctx.reply(`Starting oh-task for ${projectName} #${normalizedIssue}${baseInfo}...`, { parse_mode: "Markdown" });
+
+  try {
+    const spawnOptions: SpawnOptions = { projectPath, projectName };
+    if (baseBranch) {
+      spawnOptions.baseBranch = baseBranch;
+    }
+    const tmuxName = await spawnSession("oh-task", normalizedIssue, chatId, spawnOptions);
+
+    const session: Session = {
+      taskId: sessionKey,
+      tmuxName,
+      skill: "oh-task",
+      status: "running",
+      startedAt: new Date(),
+      chatId,
+    };
+    setSession(sessionKey, session);
+
+    const keyboard = new InlineKeyboard().text(`Stop ${sessionKey}`, `stop:${sessionKey}`);
+    await ctx.reply(
+      `oh-task running for ${projectName} #${normalizedIssue}
+Branch: \`issue/${normalizedIssue}\`${baseBranch ? `\nBase: \`${baseBranch}\`` : ""}
+Session: \`${tmuxName}\``,
+      { parse_mode: "Markdown", reply_markup: keyboard }
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await ctx.reply(`Failed to start oh-task: ${message}`);
   }
 }
 
