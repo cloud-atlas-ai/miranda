@@ -54,13 +54,15 @@ Use `[branch]` for stacked PRs where this issue depends on another in-flight PR.
    ```
 8. Work until issue is resolved
 9. Stage changes (`git add`)
-10. Run `sg review` on staged changes (do NOT use code-reviewer agent)
-11. Handle review findings:
+10. Run code checks (cargo check, npm/pnpm build, go build, etc. based on project type).
+    Fix any errors, re-stage, re-run until clean.
+11. Run `sg review` on staged changes (do NOT use code-reviewer agent)
+12. Handle review findings:
     - P1-P3 trivial: fix inline, re-stage, re-review
     - P1-P3 non-trivial: create child issue with `gh issue create --title "..." --body "Parent: #<issue-number>"`
     - P4: discard (nitpick)
-12. Commit code changes
-13. **CRITICAL: Complete ALL child issues before PR.**
+13. Commit code changes
+14. **CRITICAL: Complete ALL child issues before PR.**
     Any `gh issue create` during this session = child that blocks PR.
     No "follow-ups" - if you create it, you work it now.
 
@@ -68,11 +70,12 @@ Use `[branch]` for stacked PRs where this issue depends on another in-flight PR.
     - Claim: `gh issue edit <child-number> --add-assignee @me`
     - Work until complete
     - Stage changes
+    - Run code checks, fix errors until clean
     - Run `sg review` (each issue gets its own review!)
     - Handle findings (may spawn more children)
     - Commit
     - Loop until zero unclosed children
-14. ALL issues addressed -> push and create PR:
+15. ALL issues addressed -> push and create PR:
     ```bash
     git push -u origin issue/<number>
     gh pr create --base <target-branch> --title "<issue-title>" --body "$(cat <<'EOF'
@@ -88,7 +91,7 @@ Use `[branch]` for stacked PRs where this issue depends on another in-flight PR.
     )"
     ```
     The "Closes #N" syntax auto-closes issues when PR merges.
-15. Wait for CodeRabbit review, then iterate:
+16. Wait for CodeRabbit review, then iterate:
     - `gh pr view <pr-number> --comments` to check for CodeRabbit feedback
     - Handle like sg findings:
       - Trivial: fix inline
@@ -96,12 +99,13 @@ Use `[branch]` for stacked PRs where this issue depends on another in-flight PR.
       - Nits: ignore
     - For each fix or new issue:
       - Stage changes
+      - Run code checks, fix errors until clean
       - Run `sg review` (CodeRabbit fixes get sg reviewed too!)
       - Handle any new findings
       - Commit
     - Push all changes
     - Repeat until CodeRabbit has no new comments
-16. Return to main repo and signal completion (if `$MIRANDA_PORT` is set):
+17. Return to main repo and signal completion (if `$MIRANDA_PORT` is set):
     ```bash
     cd <original-dir>
     curl -sS -X POST "http://localhost:${MIRANDA_PORT}/complete" \
@@ -109,11 +113,11 @@ Use `[branch]` for stacked PRs where this issue depends on another in-flight PR.
       -d "{\"session\": \"$TMUX_SESSION\", \"status\": \"success\", \"pr\": \"<pr-url>\"}"
     ```
     **CRITICAL:** Signal BEFORE cleanup. If still in worktree when it's deleted, curl fails.
-17. Cleanup worktree:
+18. Cleanup worktree:
     ```bash
     git worktree remove .worktrees/issue-<number>
     ```
-18. Exit and report PR URL
+19. Exit and report PR URL
 
 ## Git Workflow
 
