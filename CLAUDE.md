@@ -80,7 +80,7 @@ src/
 
 | Command | Action |
 |---------|--------|
-| `/ohtask <project> <issue> [branch]` | Start oh-task skill for GitHub issue |
+| `/ohtask <project> <issue>... [--base branch]` | Start oh-task skill for GitHub issue(s) |
 | `/ohmerge <project>` | Batch merge GitHub issue PRs (oh-merge label) |
 | `/ohnotes <project> <pr>` | Address GitHub issue PR feedback |
 
