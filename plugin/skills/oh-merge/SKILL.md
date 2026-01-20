@@ -20,9 +20,11 @@ Like drummer, but for GitHub issue PRs (from oh-task) instead of ba task PRs (fr
 
 2. Find all PRs with `oh-merge` label:
    ```bash
-   gh pr list --label oh-merge --json number,title,headRefName,baseRefName,mergeable,additions,deletions
+   gh pr list --label oh-merge --json number,title,headRefName,baseRefName,additions,deletions
    ```
    **Only PRs with the `oh-merge` label are eligible for merge.**
+
+   **IMPORTANT:** PRs with merge conflicts ARE eligible. The skill rebases and resolves conflicts in step 6. Do NOT skip PRs because of conflict status - that's exactly what this skill handles.
 
 3. **Build dependency graph and identify stacks:**
    - Create adjacency list: `baseRefName → [PRs targeting it]`
@@ -71,7 +73,11 @@ Like drummer, but for GitHub issue PRs (from oh-task) instead of ba task PRs (fr
       git rebase origin/<base-branch>  # main for root, parent branch for children
       ```
 
-   c. If conflicts occur, resolve them (standard git conflict resolution)
+   c. **Resolve any rebase conflicts** (this is expected and normal):
+      - Conflicts WILL occur when main has moved since the PR was created
+      - Use standard git conflict resolution to fix each conflicting file
+      - This is the core value of oh-merge - handling what GitHub can't auto-merge
+      - Only fail if conflicts are truly unresolvable (contradictory changes)
 
    d. Push rebased branch:
       ```bash
@@ -125,10 +131,11 @@ When PRs target other PR branches (not main), oh-merge detects the stack and pro
 
 **Detection:**
 ```bash
-gh pr list --label oh-merge --json number,title,headRefName,baseRefName,mergeable
+gh pr list --label oh-merge --json number,title,headRefName,baseRefName
 ```
 - PRs with `baseRefName = main` are roots
 - PRs with `baseRefName = issue/<number>` are children targeting that parent
+- Ignore merge conflict status - we handle conflicts during rebase
 
 **Graph building:**
 ```
