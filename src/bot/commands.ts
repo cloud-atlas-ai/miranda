@@ -235,7 +235,7 @@ I give voice to the Primer. Commands:
 /restart - Graceful restart
 /reset <project> - Hard reset project to origin
 /mouse <task-id> - Start a mouse on a ba task
-/ohtask <project> <issue> - Start on a GitHub issue
+/ohtask <project> <issue>... - Start on GitHub issues
 /drummer <project> - Batch merge ba PRs
 /ohmerge <project> - Batch merge GitHub issue PRs
 /notes <project> <pr> - Address ba PR feedback
@@ -1021,30 +1021,80 @@ Addressing GitHub issue PR feedback...`,
   }
 }
 
+/** Parsed ohtask command arguments */
+interface OhTaskArgs {
+  projectName: string;
+  issueNumbers: string[];
+  baseBranch?: string;
+}
+
+/**
+ * Parse /ohtask command arguments.
+ * Format: /ohtask <project> <issue>... [--base branch]
+ * Examples:
+ *   /ohtask miranda 42
+ *   /ohtask miranda 42 43 44
+ *   /ohtask miranda 42 --base feature-branch
+ *   /ohtask miranda 42 43 --base feature-branch
+ */
+function parseOhTaskArgs(input: string): OhTaskArgs | null {
+  const normalized = normalizeDashes(input.trim());
+  if (!normalized) return null;
+
+  const parts = normalized.split(/\s+/);
+  if (parts.length < 2) return null;
+
+  const projectName = parts[0];
+  const issueNumbers: string[] = [];
+  let baseBranch: string | undefined;
+
+  // Parse remaining arguments
+  let i = 1;
+  while (i < parts.length) {
+    if (parts[i] === "--base") {
+      // Next part is the branch name
+      if (i + 1 >= parts.length) return null; // --base without value
+      baseBranch = parts[i + 1];
+      i += 2;
+      // Continue parsing - allow issues after --base branch
+      continue;
+    }
+    // Should be an issue number
+    const issue = parts[i].replace(/^#/, ""); // Strip leading #
+    if (!/^\d+$/.test(issue)) {
+      // If not a number and not --base, check if it's a trailing branch (legacy support)
+      // Legacy: /ohtask miranda 42 feature-branch
+      if (i === parts.length - 1 && issueNumbers.length > 0) {
+        baseBranch = parts[i];
+        break;
+      }
+      return null; // Invalid issue number
+    }
+    issueNumbers.push(issue);
+    i++;
+  }
+
+  if (issueNumbers.length === 0) return null;
+
+  return { projectName, issueNumbers, baseBranch };
+}
+
 async function handleOhTask(ctx: Context): Promise<void> {
-  const args = ctx.match?.toString().trim();
+  const input = ctx.match?.toString() ?? "";
+  const args = parseOhTaskArgs(input);
   if (!args) {
-    await ctx.reply("Usage: /ohtask <project> <issue-number> [branch]");
+    await ctx.reply(
+      `Usage: /ohtask <project> <issue>... [--base branch]
+
+Examples:
+  /ohtask miranda 42
+  /ohtask miranda 42 43 44
+  /ohtask miranda 42 --base feature-branch`
+    );
     return;
   }
 
-  // Parse arguments: <project> <issue-number> [branch]
-  const parts = args.split(/\s+/);
-  if (parts.length < 2 || parts.length > 3) {
-    await ctx.reply("Usage: /ohtask <project> <issue-number> [branch]\n\nExample: /ohtask miranda 42");
-    return;
-  }
-
-  const [projectName, issueNumber, baseBranch] = parts;
-
-  // Strip leading # from issue number if present
-  const normalizedIssue = issueNumber.replace(/^#/, "");
-
-  // Validate issue number is numeric
-  if (!/^\d+$/.test(normalizedIssue)) {
-    await ctx.reply("Error: Issue number must be numeric (e.g., /ohtask miranda 42 or /ohtask miranda #42)");
-    return;
-  }
+  const { projectName, issueNumbers, baseBranch } = args;
 
   // Validate project exists in PROJECTS_DIR
   const projectPath = `${config.projectsDir}/${projectName}`;
@@ -1057,7 +1107,7 @@ async function handleOhTask(ctx: Context): Promise<void> {
     return;
   }
 
-  // Pull latest changes before starting
+  // Pull latest changes before starting (once for all issues)
   await ctx.reply(`Pulling ${projectName}...`);
   const pullResult = await pullProject(projectPath);
   if (!pullResult.success) {
@@ -1068,50 +1118,95 @@ async function handleOhTask(ctx: Context): Promise<void> {
     await ctx.reply(`Pulled ${pullResult.commits} commit(s)`);
   }
 
-  // Use project + issue number as session key
-  const sessionKey = `oh-task-${projectName}-${normalizedIssue}`;
-  const existing = getSession(sessionKey);
-  if (existing) {
-    await ctx.reply(`oh-task session for ${projectName} #${normalizedIssue} already exists (${existing.status})`);
-    return;
-  }
-
   const chatId = ctx.chat?.id;
   if (!chatId) {
     await ctx.reply("Error: Could not determine chat ID");
     return;
   }
 
-  const baseInfo = baseBranch ? ` (base: \`${baseBranch}\`)` : "";
-  await ctx.reply(`Starting oh-task for ${projectName} #${normalizedIssue}${baseInfo}...`, { parse_mode: "Markdown" });
-
-  try {
-    const spawnOptions: SpawnOptions = { projectPath, projectName };
-    if (baseBranch) {
-      spawnOptions.baseBranch = baseBranch;
+  // Check for existing sessions
+  const existingSessions: string[] = [];
+  const issuesToStart: string[] = [];
+  for (const issue of issueNumbers) {
+    const sessionKey = `oh-task-${projectName}-${issue}`;
+    const existing = getSession(sessionKey);
+    if (existing) {
+      existingSessions.push(`#${issue} (${existing.status})`);
+    } else {
+      issuesToStart.push(issue);
     }
-    const tmuxName = await spawnSession("oh-task", normalizedIssue, chatId, spawnOptions);
+  }
 
-    const session: Session = {
-      taskId: sessionKey,
-      tmuxName,
-      skill: "oh-task",
-      status: "running",
-      startedAt: new Date(),
-      chatId,
-    };
-    setSession(sessionKey, session);
+  if (existingSessions.length > 0) {
+    await ctx.reply(`Skipping existing sessions: ${existingSessions.join(", ")}`);
+  }
 
-    const keyboard = new InlineKeyboard().text(`Stop ${sessionKey}`, `stop:${sessionKey}`);
-    await ctx.reply(
-      `oh-task running for ${projectName} #${normalizedIssue}
-Branch: \`issue/${normalizedIssue}\`${baseBranch ? `\nBase: \`${baseBranch}\`` : ""}
-Session: \`${tmuxName}\``,
-      { parse_mode: "Markdown", reply_markup: keyboard }
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await ctx.reply(`Failed to start oh-task: ${message}`);
+  if (issuesToStart.length === 0) {
+    await ctx.reply("No new issues to start");
+    return;
+  }
+
+  const baseInfo = baseBranch ? ` (base: \`${baseBranch}\`)` : "";
+  const issueList = issuesToStart.map((i) => `#${i}`).join(", ");
+  await ctx.reply(`Starting oh-task for ${projectName} ${issueList}${baseInfo}...`, { parse_mode: "Markdown" });
+
+  // Spawn sessions for all issues
+  const results: { issue: string; success: boolean; tmuxName?: string; error?: string }[] = [];
+  for (const issue of issuesToStart) {
+    try {
+      const spawnOptions: SpawnOptions = { projectPath, projectName };
+      if (baseBranch) {
+        spawnOptions.baseBranch = baseBranch;
+      }
+      const tmuxName = await spawnSession("oh-task", issue, chatId, spawnOptions);
+
+      const sessionKey = `oh-task-${projectName}-${issue}`;
+      const session: Session = {
+        taskId: sessionKey,
+        tmuxName,
+        skill: "oh-task",
+        status: "running",
+        startedAt: new Date(),
+        chatId,
+      };
+      setSession(sessionKey, session);
+      results.push({ issue, success: true, tmuxName });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      results.push({ issue, success: false, error: message });
+    }
+  }
+
+  // Build summary message
+  const successful = results.filter((r) => r.success);
+  const failed = results.filter((r) => !r.success);
+
+  const lines: string[] = [];
+  if (successful.length > 0) {
+    lines.push("*Started:*");
+    for (const r of successful) {
+      lines.push(`  #${r.issue} → \`${r.tmuxName}\``);
+    }
+  }
+  if (failed.length > 0) {
+    if (lines.length > 0) lines.push("");
+    lines.push("*Failed:*");
+    for (const r of failed) {
+      lines.push(`  #${r.issue}: ${r.error}`);
+    }
+  }
+
+  // Build keyboard with stop buttons for successful sessions
+  const keyboard = new InlineKeyboard();
+  for (const r of successful) {
+    const sessionKey = `oh-task-${projectName}-${r.issue}`;
+    keyboard.text(`Stop #${r.issue}`, `stop:${sessionKey}`).row();
+  }
+
+  if (successful.length > 0) {
+    await ctx.reply(lines.join("\n"), { parse_mode: "Markdown", reply_markup: keyboard });
+  } else {
+    await ctx.reply(lines.join("\n"), { parse_mode: "Markdown" });
   }
 }
 
