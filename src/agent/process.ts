@@ -198,34 +198,6 @@ function buildSkillArgs(skill: SkillType, options: SkillOptions): string {
   const { taskId, baseBranch, projectName } = options;
 
   switch (skill) {
-    case "mouse": {
-      if (!taskId) {
-        throw new Error("spawnAgent: taskId is required for mouse skill");
-      }
-      validateIdSafe(taskId, "taskId");
-      if (baseBranch) {
-        validateBranchSafe(baseBranch, "baseBranch");
-      }
-      return baseBranch ? `${taskId} ${baseBranch}` : taskId;
-    }
-    case "drummer": {
-      if (!projectName) {
-        throw new Error("spawnAgent: projectName is required for drummer skill");
-      }
-      validateIdSafe(projectName, "projectName");
-      return "";  // drummer takes no arguments
-    }
-    case "notes": {
-      if (!taskId) {
-        throw new Error("spawnAgent: PR number is required for notes skill");
-      }
-      if (!projectName) {
-        throw new Error("spawnAgent: projectName is required for notes skill");
-      }
-      validateIdSafe(taskId, "prNumber");
-      validateIdSafe(projectName, "projectName");
-      return taskId;
-    }
     case "oh-task": {
       if (!taskId) {
         throw new Error("spawnAgent: issue number is required for oh-task skill");
@@ -267,6 +239,17 @@ function buildSkillArgs(skill: SkillType, options: SkillOptions): string {
       }
       validateIdSafe(projectName, "projectName");
       // taskId is the description - don't validate pattern (descriptions contain spaces)
+      return taskId;
+    }
+    case "jira-plan": {
+      if (!taskId) {
+        throw new Error("spawnAgent: parent issue and description/session are required for jira-plan skill");
+      }
+      if (!projectName) {
+        throw new Error("spawnAgent: projectName is required for jira-plan skill");
+      }
+      validateIdSafe(projectName, "projectName");
+      // taskId contains "PARENT-123 description" - don't validate pattern
       return taskId;
     }
     default: {

@@ -1,6 +1,6 @@
 import { Bot } from "grammy";
 import { config, validateConfig } from "./config.js";
-import { registerCommands, cleanupOrphanedSessions, handleTasksCallback, handleMouseCallback, discoverOrphanedSessions, executeKillall, handleResetCallback, stopSession } from "./bot/commands.js";
+import { registerCommands, cleanupOrphanedSessions, discoverOrphanedSessions, executeKillall, handleResetCallback, stopSession } from "./bot/commands.js";
 import { parseCallback } from "./bot/keyboards.js";
 import {
   getAgent,
@@ -139,36 +139,6 @@ bot.on("callback_query:data", async (ctx) => {
       confirmed,
       async (text, options) => {
         await ctx.editMessageText(text, options);
-      }
-    );
-    return;
-  }
-
-  // Handle tasks:<project> callback from /projects
-  if (data.startsWith("tasks:")) {
-    const projectName = data.slice(6); // Remove "tasks:" prefix
-    await ctx.answerCallbackQuery();
-    await handleTasksCallback(
-      projectName,
-      async (text, options) => {
-        await ctx.reply(text, options);
-      }
-    );
-    return;
-  }
-
-  // Handle mouse:<task-id> callback from /tasks
-  if (data.startsWith("mouse:")) {
-    const taskId = data.slice(6); // Remove "mouse:" prefix
-    await ctx.answerCallbackQuery({ text: `Starting mouse for ${taskId}...` });
-    if (!chatId) {
-      return;
-    }
-    await handleMouseCallback(
-      taskId,
-      chatId,
-      async (text, options) => {
-        await ctx.reply(text, options);
       }
     );
     return;

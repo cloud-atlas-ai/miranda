@@ -94,8 +94,7 @@ src/
 
 | Command | Action |
 |---------|--------|
-| `/projects` | List projects on server with task counts |
-| `/tasks <project>` | List tasks for a project |
+| `/projects` | List projects on server |
 | `/newproject <repo>` | Clone GitHub repo and init sg |
 | `/pull` | Pull all clean projects (skips dirty/active) |
 | `/reset <project>` | Hard reset project to origin (with confirmation) |
@@ -117,16 +116,6 @@ src/
 | `/selfupdate` | Pull and rebuild Miranda |
 | `/restart` | Graceful restart |
 | `/ssh` | Get SSH command for manual access |
-
-### Legacy ba Workflow (Deprecated)
-
-> These commands use the ba task tracking system. For new projects, use the GitHub issue workflow above.
-
-| Command | Action |
-|---------|--------|
-| `/mouse <task> [branch]` | Start mouse skill for ba task |
-| `/drummer <project>` | Batch merge ba PRs (drummer-merge label) |
-| `/notes <project> <pr>` | Address ba PR feedback |
 
 ### `/newproject` Details
 

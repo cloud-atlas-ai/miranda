@@ -173,11 +173,27 @@ The holistic review checks what individual PR reviews can't:
 
 ## Exit Conditions
 
-- **Success**: Selected stack fully merged → signal `status: "success"`
-- **Partial success**: Some PRs in stack merged, then failure → signal `status: "error"` with details
-- **Needs attention**: Batch review raised concerns - waiting for human decision (no signal - awaiting input)
-- **Error**: Unrecoverable failure (code conflicts, CI failing, cycle detected) → signal `status: "error"` with message
-- **No work**: No PRs with `oh-merge` label found → signal `status: "success"` (nothing to do)
+- **Success**: Selected stack fully merged
+- **Partial success**: Some PRs in stack merged, then failure
+- **Needs attention**: Batch review raised concerns - waiting for human decision
+- **Error**: Unrecoverable failure (code conflicts, CI failing, cycle detected)
+- **No work**: No PRs with `oh-merge` label found
+
+## Completion Signaling (MANDATORY)
+
+**CRITICAL: You MUST signal completion when done.** Call the `signal_completion` tool as your FINAL action.
+
+**Signal based on outcome:**
+| Outcome | Call |
+|---------|------|
+| Stack merged | `signal_completion(status: "success", message: "Merged N PRs")` |
+| No PRs to merge | `signal_completion(status: "success", message: "No PRs with oh-merge label")` |
+| Partial success | `signal_completion(status: "error", error: "Merged N PRs, failed on PR #X: <reason>")` |
+| Unrecoverable failure | `signal_completion(status: "error", error: "<reason>")` |
+
+**If you do not signal, the orchestrator will not know you are done and the session becomes orphaned.**
+
+**Fallback:** If the `signal_completion` tool is not available, output your completion status as your final message in the format: `COMPLETION: status=<status> message=<message>` or `COMPLETION: status=<status> error=<reason>`.
 
 ## Example
 
@@ -209,6 +225,7 @@ Merge complete.
   Merged: 1 PR (#42)
   Remaining: 1 PR (#44 - queued for next run)
 
+signal_completion(status: "success", message: "Merged 1 PR (#42)")
 Done.
 ```
 
@@ -249,5 +266,6 @@ Stack merged.
   Merged: 2 PRs (#42, #43)
   Remaining: 1 PR (#44 - queued for next run)
 
+signal_completion(status: "success", message: "Merged 2 PRs (#42, #43)")
 Done.
 ```
