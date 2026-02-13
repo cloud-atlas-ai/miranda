@@ -3,6 +3,9 @@
 /** Supported skill types for Miranda */
 export type SkillType = "mouse" | "drummer" | "notes" | "oh-task" | "oh-merge" | "oh-notes" | "oh-plan";
 
+/** UI request method type from oh-my-pi */
+export type UIRequestMethod = "select" | "confirm" | "input";
+
 export interface Session {
   taskId: string;
   /** Session identifier - either a process ID (for agent) or tmux session name (legacy) */
@@ -15,6 +18,8 @@ export interface Session {
   awaitingFreeText?: AwaitingFreeText;
   /** Pending UI request ID from agent (for extension_ui_response) */
   pendingUIRequestId?: string;
+  /** Pending UI request method - needed to send correct response shape */
+  pendingUIMethod?: UIRequestMethod;
 }
 
 export interface PendingQuestion {

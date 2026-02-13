@@ -64,6 +64,7 @@ export interface RpcExtensionUIRequest {
   confirmText?: string;
   cancelText?: string;
   defaultValue?: string;
+  notifyType?: "info" | "warning" | "error";  // for notify method
 }
 
 /** Agent lifecycle events */

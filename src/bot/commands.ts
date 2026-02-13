@@ -1736,6 +1736,7 @@ async function handleFreeText(ctx: Context): Promise<void> {
     // Clear awaiting state and update status
     session.awaitingFreeText = undefined;
     session.pendingUIRequestId = undefined;
+    session.pendingUIMethod = undefined;
     session.status = "running";
     setSession(session.taskId, session);
 

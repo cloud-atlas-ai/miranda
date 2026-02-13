@@ -1,7 +1,7 @@
 import { Bot } from "grammy";
 import { config, validateConfig } from "./config.js";
 import { registerCommands, cleanupOrphanedSessions, handleTasksCallback, handleMouseCallback, discoverOrphanedSessions, executeKillall, handleResetCallback, stopSession, killSession } from "./bot/commands.js";
-import { parseCallback, formatAnswer, buildQuestionKeyboard } from "./bot/keyboards.js";
+import { parseCallback, buildQuestionKeyboard } from "./bot/keyboards.js";
 import { createHookServer, type HookServer } from "./hooks/server.js";
 import {
   getAgent,
@@ -235,21 +235,34 @@ bot.on("callback_query:data", async (ctx) => {
 
   if (action.type === "answer") {
     // Send the selected option via RPC
-    const answer = formatAnswer(action, questions);
-    if (answer) {
+    const question = questions[action.questionIdx];
+    const selectedOption = question?.options[action.optionIdx];
+    if (selectedOption) {
       try {
         const agent = getAgent(session.sessionId);
         if (agent && session.pendingUIRequestId) {
-          // Send UI response via RPC
-          sendUIResponse(agent, session.pendingUIRequestId, { value: answer });
+          // Build correct response shape based on UI method
+          const method = session.pendingUIMethod;
+          if (method === "confirm") {
+            // For confirm: send { confirmed: true/false }
+            // optionIdx === 0 means first button was pressed.
+            // handleConfirmRequest (events.ts) builds options as [confirmText, cancelText],
+            // so first button = confirm, second button = cancel.
+            const confirmed = action.optionIdx === 0;
+            sendUIResponse(agent, session.pendingUIRequestId, { confirmed });
+          } else {
+            // For select (and others): send { value: "selected option string" }
+            sendUIResponse(agent, session.pendingUIRequestId, { value: selectedOption.label });
+          }
         }
         session.pendingQuestion = undefined;
         session.pendingUIRequestId = undefined;
+        session.pendingUIMethod = undefined;
         session.status = "running";
         setSession(session.taskId, session);
         await ctx.answerCallbackQuery({ text: "Response sent!" });
         await ctx.editMessageText(
-          `${ctx.callbackQuery.message?.text}\n\n_Answered: ${questions[action.questionIdx]?.options[action.optionIdx]?.label}_`,
+          `${ctx.callbackQuery.message?.text}\n\n_Answered: ${selectedOption.label}_`,
           { parse_mode: "Markdown" }
         );
       } catch (error) {
@@ -275,6 +288,10 @@ bot.catch((err) => {
 });
 
 // Hook notification handler (legacy - for tmux sessions using Claude Code hooks)
+// NOTE: This handler won't match agent-based sessions since they use process IDs
+// as sessionId, not tmux session names. This is expected - the hook server is
+// transitional and will be removed entirely once agent sessions use RPC events
+// exclusively (tracked in #68).
 function handleNotification(notification: HookNotification): void {
   const session = findSessionBySessionId(notification.session);
   if (!session) {
@@ -314,7 +331,10 @@ function handleNotification(notification: HookNotification): void {
     });
 }
 
-// Completion handler - called when skill finishes
+// Completion handler - called when skill finishes (via signal_completion tool)
+// NOTE: Like handleNotification, this only works with tmux session names.
+// Agent-based sessions signal completion via agent_end RPC event instead.
+// This handler will be removed with #68.
 function handleCompletion(completion: CompletionNotification): void {
   const session = findSessionBySessionId(completion.session);
   if (!session) {

@@ -219,6 +219,7 @@ function handleSelectRequest(
     receivedAt: new Date(),
   };
   session.pendingUIRequestId = requestId;
+  session.pendingUIMethod = "select";
   setSession(taskId, session);
 
   // Build Telegram message
@@ -255,6 +256,8 @@ function handleConfirmRequest(
   if (!session) return;
 
   // Convert to Question format with yes/no options
+  // NOTE: Button order matters! The callback handler in index.ts assumes
+  // optionIdx 0 = confirm, optionIdx 1 = cancel. Keep this order.
   const questions: Question[] = [
     {
       question: event.message ?? "Please confirm",
@@ -275,6 +278,7 @@ function handleConfirmRequest(
     receivedAt: new Date(),
   };
   session.pendingUIRequestId = requestId;
+  session.pendingUIMethod = "confirm";
   setSession(taskId, session);
 
   // Build Telegram message
@@ -313,6 +317,7 @@ function handleInputRequest(
     promptMessageId: 0,
   };
   session.pendingUIRequestId = requestId;
+  session.pendingUIMethod = "input";
   setSession(taskId, session);
 
   // Build message
@@ -335,14 +340,12 @@ function handleInputRequest(
 
 /**
  * Handle a notification (info/warning/error message).
- * Note: oh-my-pi may not send a type field, so we default to info
+ * Uses notifyType field from oh-my-pi, falls back to info.
  */
 function handleNotifyRequest(chatId: number, event: RpcExtensionUIRequest): void {
-  // Infer type from title if not explicitly provided
   const title = event.title ?? "Info";
-  const isError = title.toLowerCase().includes("error");
-  const isWarning = title.toLowerCase().includes("warning");
-  const emoji = isError ? "❌" : isWarning ? "⚠️" : "ℹ️";
+  const notifyType = event.notifyType ?? "info";
+  const emoji = notifyType === "error" ? "❌" : notifyType === "warning" ? "⚠️" : "ℹ️";
 
   botInstance!.api
     .sendMessage(chatId, `${emoji} *${title}*\n\n${event.message ?? ""}`, {
