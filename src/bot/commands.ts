@@ -1,4 +1,3 @@
-import { basename } from "path";
 import type { Bot, Context } from "grammy";
 import { InlineKeyboard } from "grammy";
 import {
@@ -20,16 +19,10 @@ import {
   getAllSessions,
   setRestartChatId,
 } from "../state/sessions.js";
-import { scanProjects, getProjectTasks, findProjectForTask, isRepoDirty, pullProject, updateProjectIfClean, selfUpdate, resetProject, getDefaultBranch, type TaskInfo, type UpdateResult, type SelfUpdateResult, type ResetResult } from "../projects/scanner.js";
+import { scanProjects, getProjectTasks, isRepoDirty, pullProject, updateProjectIfClean, selfUpdate, resetProject, getDefaultBranch, type UpdateResult } from "../projects/scanner.js";
 import { cloneAndInit } from "../projects/clone.js";
 import { config } from "../config.js";
 import type { Session, SkillType } from "../types.js";
-
-/** Parsed mouse command arguments */
-interface MouseArgs {
-  taskId: string;
-  baseBranch?: string;
-}
 
 /**
  * Normalize dash-like characters to standard ASCII hyphens.
@@ -41,60 +34,6 @@ function normalizeDashes(input: string): string {
     .replace(/—/g, "--") // em-dash (U+2014) → double hyphen
     .replace(/–/g, "-")  // en-dash (U+2013) → hyphen
     .replace(/−/g, "-"); // minus sign (U+2212) → hyphen
-}
-
-/**
- * Parse /mouse command arguments.
- * Format: /mouse <task-id> [branch]
- * Also handles legacy --base flag for backward compatibility.
- */
-function parseMouseArgs(input: string): MouseArgs | null {
-  const normalized = normalizeDashes(input.trim());
-  if (!normalized) return null;
-
-  // Handle legacy --base syntax for backward compatibility
-  const legacyMatch = normalized.match(/^(\S+)\s+--base\s+(\S+)$/);
-  if (legacyMatch) {
-    return {
-      taskId: legacyMatch[1],
-      baseBranch: legacyMatch[2],
-    };
-  }
-
-  // Match: taskId followed by optional branch (positional)
-  const match = normalized.match(/^(\S+)(?:\s+(\S+))?$/);
-  if (!match) return null;
-
-  return {
-    taskId: match[1],
-    baseBranch: match[2],
-  };
-}
-
-/**
- * Build inline keyboard with task buttons for a project.
- * Shared by handleTasks command and handleTasksCallback.
- */
-export function buildTaskKeyboard(
-  tasks: TaskInfo[],
-  projectName: string
-): { message: string; keyboard: InlineKeyboard } {
-  const keyboard = new InlineKeyboard();
-  for (const task of tasks) {
-    const statusEmoji = task.status === "in_progress" ? "🔄" : "📋";
-    // Truncate title to fit in button (leaving room for ID)
-    const maxTitleLen = 30;
-    const displayTitle =
-      task.title.length > maxTitleLen
-        ? task.title.slice(0, maxTitleLen - 1) + "…"
-        : task.title;
-    keyboard.text(`${statusEmoji} ${task.id}: ${displayTitle}`, `mouse:${task.id}`).row();
-  }
-
-  return {
-    message: `*Tasks for ${projectName}*`,
-    keyboard,
-  };
 }
 
 /** Shutdown function type for /restart command */
@@ -195,16 +134,16 @@ export async function killSession(sessionId: string): Promise<void> {
  * Commands implemented:
  * - /start - Welcome message
  * - /projects - List projects with task counts
- * - /tasks <project> - List tasks for a project with inline selection
- * - /mouse <task-id> - Spawn a mouse session
+ * - /tasks <project> - List tasks for a project
  * - /status - List all sessions
  * - /stop <session> - Kill a session (task-id or full session name)
  * - /cleanup - Remove orphaned sessions
  * - /killall - Kill all sessions with confirmation
- * - /drummer <project> - Run batch merge for a project
- * - /notes <project> <pr-number> - Address PR feedback (ba tasks)
+ * - /ohmerge <project> - Batch merge GitHub issue PRs
  * - /ohnotes <project> <pr-number> - Address PR feedback (GitHub issues)
- * - /newproject <repo> - Clone repo and init ba/sg/wm
+ * - /ohtask <project> <issue>... - Work GitHub issues
+ * - /ohplan <project> <desc> - Plan and create GitHub issues
+ * - /newproject <repo> - Clone repo and init sg
  * - /pull - Pull all clean projects
  * - /selfupdate - Pull and rebuild Miranda
  * - /restart - Graceful restart
@@ -217,14 +156,11 @@ export function registerCommands(bot: Bot<Context>, shutdown: ShutdownFn): void 
   bot.command("start", handleStart);
   bot.command("projects", handleProjects);
   bot.command("tasks", handleTasks);
-  bot.command("mouse", handleMouse);
   bot.command("status", handleStatus);
   bot.command("stop", handleStop);
   bot.command("cleanup", handleCleanup);
   bot.command("killall", handleKillall);
-  bot.command("drummer", handleDrummer);
   bot.command("ohmerge", handleOhMerge);
-  bot.command("notes", handleNotes);
   bot.command("ohnotes", handleOhNotes);
   bot.command("ohtask", handleOhTask);
   bot.command("ohplan", handleOhPlan);
@@ -253,13 +189,10 @@ I give voice to the Primer. Commands:
 /selfupdate - Pull and rebuild Miranda
 /restart - Graceful restart
 /reset <project> - Hard reset project to origin
-/mouse <task-id> - Start a mouse on a ba task
-/ohtask <project> <issue>... - Start on GitHub issues
+/ohtask <project> <issue>... - Work GitHub issues
 /ohplan <project> <desc> - Plan and create GitHub issues
-/drummer <project> - Batch merge ba PRs
 /ohmerge <project> - Batch merge GitHub issue PRs
-/notes <project> <pr> - Address ba PR feedback
-/ohnotes <project> <pr> - Address GitHub issue PR feedback
+/ohnotes <project> <pr> - Address PR feedback
 /status - Show active sessions
 /stop <session> - Stop a session
 /cleanup - Remove orphaned sessions
@@ -311,208 +244,13 @@ async function handleProjects(ctx: Context): Promise<void> {
 }
 
 async function handleTasks(ctx: Context): Promise<void> {
-  const projectName = ctx.match?.toString().trim();
-  if (!projectName) {
-    await ctx.reply("Usage: /tasks <project-name>");
-    return;
-  }
+  await ctx.reply(
+    `The /tasks command has been deprecated.
 
-  // Auto-update project before listing tasks (best-effort, don't block on failure)
-  const projectPath = `${config.projectsDir}/${projectName}`;
-  try {
-    await updateProjectIfClean(projectPath);
-  } catch {
-    // Silently continue - update is best-effort
-  }
-
-  const tasks = await getProjectTasks(projectName);
-
-  if (tasks.length === 0) {
-    await ctx.reply(`*Tasks for ${projectName}*\n\n_No tasks ready_`, {
-      parse_mode: "Markdown",
-    });
-    return;
-  }
-
-  const { message, keyboard } = buildTaskKeyboard(tasks, projectName);
-  await ctx.reply(message, {
-    parse_mode: "Markdown",
-    reply_markup: keyboard,
-  });
-}
-
-/**
- * Handle tasks callback from /projects - external entry point for callback handler
- */
-export async function handleTasksCallback(
-  projectName: string,
-  sendMessage: (text: string, options?: { parse_mode?: "Markdown" | "MarkdownV2" | "HTML"; reply_markup?: InlineKeyboard }) => Promise<void>
-): Promise<void> {
-  // Auto-update project before listing tasks (best-effort, don't block on failure)
-  const projectPath = `${config.projectsDir}/${projectName}`;
-  try {
-    await updateProjectIfClean(projectPath);
-  } catch {
-    // Silently continue - update is best-effort
-  }
-
-  const tasks = await getProjectTasks(projectName);
-
-  if (tasks.length === 0) {
-    await sendMessage(`*Tasks for ${projectName}*\n\n_No tasks ready_`, {
-      parse_mode: "Markdown",
-    });
-    return;
-  }
-
-  const { message, keyboard } = buildTaskKeyboard(tasks, projectName);
-  await sendMessage(message, {
-    parse_mode: "Markdown",
-    reply_markup: keyboard,
-  });
-}
-
-/**
- * Handle mouse callback from /tasks - spawns mouse for selected task
- */
-export async function handleMouseCallback(
-  taskId: string,
-  chatId: number,
-  sendMessage: (text: string, options?: { parse_mode?: "Markdown" | "MarkdownV2" | "HTML"; reply_markup?: InlineKeyboard }) => Promise<void>
-): Promise<void> {
-  // Check if session already exists
-  const existing = getSession(taskId);
-  if (existing) {
-    await sendMessage(`Session for ${taskId} already exists (${existing.status})`);
-    return;
-  }
-
-  // Auto-discover project from task ID
-  let projectPath = await findProjectForTask(taskId);
-  if (!projectPath) {
-    await sendMessage(`Task \`${taskId}\` not found in any project`, { parse_mode: "Markdown" });
-    return;
-  }
-
-  // Auto-update project before starting mouse (best-effort, don't block on failure)
-  try {
-    await updateProjectIfClean(projectPath);
-  } catch {
-    // Silently continue - update is best-effort
-  }
-
-  // Re-check task exists after update (task list may have changed)
-  projectPath = await findProjectForTask(taskId);
-  if (!projectPath) {
-    await sendMessage(`Task \`${taskId}\` no longer exists after update`, { parse_mode: "Markdown" });
-    return;
-  }
-
-  const projectName = basename(projectPath) || "unknown";
-  await sendMessage(`Starting mouse for \`${projectName}: ${taskId}\`...`, { parse_mode: "Markdown" });
-
-  try {
-    const sessionId = await spawnSession("mouse", taskId, chatId, { projectPath });
-
-    const session: Session = {
-      taskId,
-      sessionId,
-      skill: "mouse",
-      status: "running",
-      startedAt: new Date(),
-      chatId,
-    };
-    setSession(taskId, session);
-
-    const keyboard = new InlineKeyboard().text(`Stop ${taskId}`, `stop:${taskId}`);
-    await sendMessage(
-      `Mouse running for \`${taskId}\`
-Branch: \`ba/${taskId}\`
-Session: \`${sessionId}\``,
-      { parse_mode: "Markdown", reply_markup: keyboard }
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await sendMessage(`Failed to start mouse: ${message}`);
-  }
-}
-
-async function handleMouse(ctx: Context): Promise<void> {
-  const input = ctx.match?.toString() ?? "";
-  const args = parseMouseArgs(input);
-  if (!args) {
-    await ctx.reply("Usage: /mouse <task-id> [branch]");
-    return;
-  }
-
-  const { taskId, baseBranch } = args;
-
-  // Check if session already exists
-  const existing = getSession(taskId);
-  if (existing) {
-    await ctx.reply(`Session for ${taskId} already exists (${existing.status})`);
-    return;
-  }
-
-  const chatId = ctx.chat?.id;
-  if (!chatId) {
-    await ctx.reply("Error: Could not determine chat ID");
-    return;
-  }
-
-  // Auto-discover project from task ID
-  let projectPath = await findProjectForTask(taskId);
-  if (!projectPath) {
-    await ctx.reply(`Task \`${taskId}\` not found in any project`, { parse_mode: "Markdown" });
-    return;
-  }
-
-  // Auto-update project before starting mouse (best-effort, don't block on failure)
-  try {
-    await updateProjectIfClean(projectPath);
-  } catch {
-    // Silently continue - update is best-effort
-  }
-
-  // Re-check task exists after update (task list may have changed)
-  projectPath = await findProjectForTask(taskId);
-  if (!projectPath) {
-    await ctx.reply(`Task \`${taskId}\` no longer exists after update`, { parse_mode: "Markdown" });
-    return;
-  }
-
-  const projectName = basename(projectPath) || "unknown";
-  const baseInfo = baseBranch ? ` (base: \`${baseBranch}\`)` : "";
-  await ctx.reply(`Starting mouse for \`${projectName}: ${taskId}\`${baseInfo}...`, { parse_mode: "Markdown" });
-
-  try {
-    const spawnOptions: SpawnOptions = { projectPath };
-    if (baseBranch) {
-      spawnOptions.baseBranch = baseBranch;
-    }
-    const sessionId = await spawnSession("mouse", taskId, chatId, spawnOptions);
-
-    const session: Session = {
-      taskId,
-      sessionId,
-      skill: "mouse",
-      status: "running",
-      startedAt: new Date(),
-      chatId,
-    };
-    setSession(taskId, session);
-
-    const keyboard = new InlineKeyboard().text(`Stop ${taskId}`, `stop:${taskId}`);
-    await ctx.reply(
-      `Mouse running for \`${taskId}\`
-Branch: \`ba/${taskId}\`${baseBranch ? `\nBase: \`${baseBranch}\`` : ""}
-Session: \`${sessionId}\``,
-      { parse_mode: "Markdown", reply_markup: keyboard }
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await ctx.reply(`Failed to start mouse: ${message}`);
-  }
+Use GitHub issues workflow instead:
+  /ohtask <project> <issue>...`,
+    { parse_mode: "Markdown" }
+  );
 }
 
 async function handleStatus(ctx: Context): Promise<void> {
@@ -746,77 +484,6 @@ export async function executeKillall(): Promise<{ killed: number; errors: string
   return { killed: agents.length, errors };
 }
 
-async function handleDrummer(ctx: Context): Promise<void> {
-  const projectName = ctx.match?.toString().trim();
-  if (!projectName) {
-    await ctx.reply("Usage: /drummer <project>");
-    return;
-  }
-
-  const chatId = ctx.chat?.id;
-  if (!chatId) {
-    await ctx.reply("Error: Could not determine chat ID");
-    return;
-  }
-
-  // Validate project exists
-  const projects = await scanProjects();
-  const project = projects.find((p) => p.name === projectName);
-  if (!project) {
-    await ctx.reply(`Project \`${projectName}\` not found in PROJECTS_DIR`, {
-      parse_mode: "Markdown",
-    });
-    return;
-  }
-
-  // Check if a drummer session is already running for THIS project
-  const sessions = getAllSessions();
-  const existingDrummer = sessions.find(
-    (s) => s.skill === "drummer" && s.status === "running" && s.sessionId.includes(projectName)
-  );
-  if (existingDrummer) {
-    await ctx.reply(
-      `Drummer session already running for ${projectName}: \`${existingDrummer.sessionId}\``,
-      { parse_mode: "Markdown" }
-    );
-    return;
-  }
-
-  await ctx.reply(`Starting drummer for \`${projectName}\`...`, {
-    parse_mode: "Markdown",
-  });
-
-  try {
-    const sessionId = await spawnSession("drummer", undefined, chatId, {
-      projectPath: project.path,
-      projectName: project.name,
-    });
-
-    // Use sessionId as the session key since drummer has no task ID
-    const session: Session = {
-      taskId: sessionId,
-      sessionId,
-      skill: "drummer",
-      status: "running",
-      startedAt: new Date(),
-      chatId,
-    };
-    setSession(sessionId, session);
-
-    const keyboard = new InlineKeyboard().text(`Stop ${sessionId}`, `stop:${sessionId}`);
-    await ctx.reply(
-      `Drummer running for \`${projectName}\`
-Session: \`${sessionId}\`
-
-Reviewing PRs with \`drummer-merge\` label...`,
-      { parse_mode: "Markdown", reply_markup: keyboard }
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await ctx.reply(`Failed to start drummer: ${message}`);
-  }
-}
-
 async function handleOhMerge(ctx: Context): Promise<void> {
   const projectName = ctx.match?.toString().trim();
   if (!projectName) {
@@ -884,82 +551,6 @@ Reviewing PRs with \`oh-merge\` label...`,
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await ctx.reply(`Failed to start oh-merge: ${message}`);
-  }
-}
-
-async function handleNotes(ctx: Context): Promise<void> {
-  const args = ctx.match?.toString().trim();
-  if (!args) {
-    await ctx.reply("Usage: /notes <project> <pr-number>");
-    return;
-  }
-
-  // Parse arguments: <project> <pr-number>
-  const parts = args.split(/\s+/);
-  if (parts.length !== 2) {
-    await ctx.reply("Usage: /notes <project> <pr-number>\n\nExample: /notes miranda 42");
-    return;
-  }
-
-  const [projectName, prNumber] = parts;
-
-  // Validate PR number is numeric
-  if (!/^\d+$/.test(prNumber)) {
-    await ctx.reply("Error: PR number must be numeric (e.g., /notes miranda 42)");
-    return;
-  }
-
-  // Validate project exists in PROJECTS_DIR
-  const projectPath = `${config.projectsDir}/${projectName}`;
-  const projects = await scanProjects();
-  const projectExists = projects.some((p) => p.name === projectName);
-  if (!projectExists) {
-    await ctx.reply(`Error: Project \`${projectName}\` not found in ${config.projectsDir}`, {
-      parse_mode: "Markdown",
-    });
-    return;
-  }
-
-  // Use project + PR number as session key
-  const sessionKey = `notes-${projectName}-${prNumber}`;
-  const existing = getSession(sessionKey);
-  if (existing) {
-    await ctx.reply(`Notes session for ${projectName} PR #${prNumber} already exists (${existing.status})`);
-    return;
-  }
-
-  const chatId = ctx.chat?.id;
-  if (!chatId) {
-    await ctx.reply("Error: Could not determine chat ID");
-    return;
-  }
-
-  await ctx.reply(`Starting notes for ${projectName} PR #${prNumber}...`, { parse_mode: "Markdown" });
-
-  try {
-    const sessionId = await spawnSession("notes", prNumber, chatId, { projectPath, projectName });
-
-    const session: Session = {
-      taskId: sessionKey,
-      sessionId,
-      skill: "notes",
-      status: "running",
-      startedAt: new Date(),
-      chatId,
-    };
-    setSession(sessionKey, session);
-
-    const keyboard = new InlineKeyboard().text(`Stop ${sessionKey}`, `stop:${sessionKey}`);
-    await ctx.reply(
-      `Notes running for ${projectName} PR #${prNumber}
-Session: \`${sessionId}\`
-
-Addressing human feedback...`,
-      { parse_mode: "Markdown", reply_markup: keyboard }
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await ctx.reply(`Failed to start notes: ${message}`);
   }
 }
 

@@ -319,14 +319,28 @@ Always add `jira-planned` label to identify subtasks created by this skill.
 
 ## Exit Conditions
 
-| Outcome | Signal |
-|---------|--------|
-| Subtask(s) created successfully | `status: "success"` |
-| Jira MCP not available | `status: "error", error: "Jira MCP not configured"` |
-| User cancelled during questions | `status: "error", error: "User cancelled"` |
-| Failed to create subtask | `status: "error", error: "<reason>"` |
-| Parent issue not found | `status: "error", error: "Parent issue not found"` |
-| Session file missing solution-space | `status: "error", error: "Session missing Solution Space - run /solution-space first"` |
+| Outcome | Description |
+|---------|-------------|
+| Success | Subtask(s) created successfully |
+| Error | Jira MCP not available, user cancelled, failed to create subtask, parent issue not found, or session file missing solution-space |
+
+## Completion Signaling (MANDATORY)
+
+**CRITICAL: You MUST signal completion when done.** Call the `signal_completion` tool as your FINAL action.
+
+**Signal based on outcome:**
+| Outcome | Call |
+|---------|------|
+| Subtasks created | `signal_completion(status: "success", message: "Created N subtasks: PROJ-101, PROJ-102")` |
+| Jira MCP not available | `signal_completion(status: "error", error: "Jira MCP not configured")` |
+| User cancelled | `signal_completion(status: "error", error: "User cancelled")` |
+| Failed to create subtask | `signal_completion(status: "error", error: "<reason>")` |
+| Parent issue not found | `signal_completion(status: "error", error: "Parent issue PROJ-100 not found")` |
+| Session missing context | `signal_completion(status: "error", error: "Session missing Solution Space - run /solution-space first")` |
+
+**If you do not signal, the orchestrator will not know you are done and the session becomes orphaned.**
+
+**Fallback:** If the `signal_completion` tool is not available, output your completion status as your final message in the format: `COMPLETION: status=<status> message=<message>` or `COMPLETION: status=<status> error=<reason>`.
 
 ## Task Mode Example
 
@@ -383,7 +397,8 @@ h2. Notes
 
 Labels: jira-planned
 
-Done. PROJ-107 ready for execution.
+signal_completion(status: "success", message: "Created 1 subtask: PROJ-107")
+Done.
 ```
 
 ## Integration with Skills Workflow
