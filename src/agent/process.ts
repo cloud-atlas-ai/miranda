@@ -308,6 +308,8 @@ export function spawnAgent(options: SpawnAgentOptions): AgentProcess {
     throw new Error("Failed to spawn agent process - no PID");
   }
 
+  console.log(`[agent:${sessionId}] Process spawned (pid=${proc.pid}, cli=${cliPath}, cwd=${cwd})`);
+
   // Create readline interface for parsing JSON lines from stdout
   const readline = createInterface({
     input: proc.stdout!,
@@ -329,6 +331,7 @@ export function spawnAgent(options: SpawnAgentOptions): AgentProcess {
     if (!line.trim()) return;
     try {
       const event = JSON.parse(line) as RpcEvent;
+      console.log(`[agent:${sessionId}] event: ${event.type}`);
       agent.handlers.onEvent?.(event);
     } catch (err) {
       console.error(`[agent:${sessionId}] Failed to parse stdout line:`, line, err);
@@ -365,6 +368,7 @@ export function spawnAgent(options: SpawnAgentOptions): AgentProcess {
  */
 function sendCommand(agent: AgentProcess, command: RpcCommand): void {
   const line = JSON.stringify(command) + "\n";
+  console.log(`[agent:${agent.sessionId}] sendCommand: ${command.type}`);
   agent.process.stdin?.write(line);
 }
 
