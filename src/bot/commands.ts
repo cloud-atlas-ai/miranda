@@ -143,6 +143,7 @@ export async function killSession(sessionId: string): Promise<void> {
  * - /ohnotes <project> <pr-number> - Address PR feedback (GitHub issues)
  * - /ohtask <project> <issue>... - Work GitHub issues
  * - /ohplan <project> <desc> - Plan and create GitHub issues
+ * - /ohreview <project> <pr-number> - Review a PR against its linked issue
  * - /newproject <repo> - Clone repo and init sg
  * - /pull - Pull all clean projects
  * - /selfupdate - Pull and rebuild Miranda
@@ -164,6 +165,7 @@ export function registerCommands(bot: Bot<Context>, shutdown: ShutdownFn): void 
   bot.command("ohnotes", handleOhNotes);
   bot.command("ohtask", handleOhTask);
   bot.command("ohplan", handleOhPlan);
+  bot.command("ohreview", handleOhReview);
   bot.command("newproject", handleNewProject);
   bot.command("pull", handlePull);
   bot.command("selfupdate", handleSelfUpdate);
@@ -193,6 +195,7 @@ I give voice to the Primer. Commands:
 /ohplan <project> <desc> - Plan and create GitHub issues
 /ohmerge <project> - Batch merge GitHub issue PRs
 /ohnotes <project> <pr> - Address PR feedback
+/ohreview <project> <pr> - Review PR against issue
 /status - Show active sessions
 /stop <session> - Stop a session
 /cleanup - Remove orphaned sessions
@@ -627,6 +630,82 @@ Addressing GitHub issue PR feedback...`,
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await ctx.reply(`Failed to start oh-notes: ${message}`);
+  }
+}
+
+async function handleOhReview(ctx: Context): Promise<void> {
+  const args = ctx.match?.toString().trim();
+  if (!args) {
+    await ctx.reply("Usage: /ohreview <project> <pr-number>");
+    return;
+  }
+
+  // Parse arguments: <project> <pr-number>
+  const parts = args.split(/\s+/);
+  if (parts.length !== 2) {
+    await ctx.reply("Usage: /ohreview <project> <pr-number>\n\nExample: /ohreview miranda 42");
+    return;
+  }
+
+  const [projectName, prNumber] = parts;
+
+  // Validate PR number is numeric
+  if (!/^\d+$/.test(prNumber)) {
+    await ctx.reply("Error: PR number must be numeric (e.g., /ohreview miranda 42)");
+    return;
+  }
+
+  // Validate project exists in PROJECTS_DIR
+  const projectPath = `${config.projectsDir}/${projectName}`;
+  const projects = await scanProjects();
+  const projectExists = projects.some((p) => p.name === projectName);
+  if (!projectExists) {
+    await ctx.reply(`Error: Project \`${projectName}\` not found in ${config.projectsDir}`, {
+      parse_mode: "Markdown",
+    });
+    return;
+  }
+
+  // Use project + PR number as session key
+  const sessionKey = `oh-review-${projectName}-${prNumber}`;
+  const existing = getSession(sessionKey);
+  if (existing) {
+    await ctx.reply(`oh-review session for ${projectName} PR #${prNumber} already exists (${existing.status})`);
+    return;
+  }
+
+  const chatId = ctx.chat?.id;
+  if (!chatId) {
+    await ctx.reply("Error: Could not determine chat ID");
+    return;
+  }
+
+  await ctx.reply(`Starting oh-review for ${projectName} PR #${prNumber}...`, { parse_mode: "Markdown" });
+
+  try {
+    const sessionId = await spawnSession("oh-review", prNumber, chatId, { projectPath, projectName });
+
+    const session: Session = {
+      taskId: sessionKey,
+      sessionId,
+      skill: "oh-review",
+      status: "running",
+      startedAt: new Date(),
+      chatId,
+    };
+    setSession(sessionKey, session);
+
+    const keyboard = new InlineKeyboard().text(`Stop ${sessionKey}`, `stop:${sessionKey}`);
+    await ctx.reply(
+      `oh-review running for ${projectName} PR #${prNumber}
+Session: \`${sessionId}\`
+
+Reviewing PR against linked issue...`,
+      { parse_mode: "Markdown", reply_markup: keyboard }
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await ctx.reply(`Failed to start oh-review: ${message}`);
   }
 }
 

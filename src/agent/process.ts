@@ -230,6 +230,17 @@ function buildSkillArgs(skill: SkillType, options: SkillOptions): string {
       validateIdSafe(projectName, "projectName");
       return taskId;
     }
+    case "oh-review": {
+      if (!taskId) {
+        throw new Error("spawnAgent: PR number is required for oh-review skill");
+      }
+      if (!projectName) {
+        throw new Error("spawnAgent: projectName is required for oh-review skill");
+      }
+      validateIdSafe(taskId, "prNumber");
+      validateIdSafe(projectName, "projectName");
+      return taskId;
+    }
     case "oh-plan": {
       if (!taskId) {
         throw new Error("spawnAgent: description is required for oh-plan skill");
